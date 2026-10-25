@@ -13,20 +13,35 @@ A personal health dashboard that runs on your own PC, in the browser. All data s
 
 A page read never downloads or changes anything: only a button does.
 
-## Run it
+## Install
+
+The app runs from its own folder, apart from this repo. `install.sh` installs one version (a git tag) from GitHub in a
+Python environment in `~/.local/share/md_apps/health_dashboard/` (or `$HEALTH_DASHBOARD_HOME`). It needs uv, npm and curl.
+
+```bash
+./install.sh v0.1.0                                            # also to update: an update replaces only env/
+~/.local/share/md_apps/health_dashboard/env/bin/health-dashboard  # http://127.0.0.1:8766
+```
+
+The app folder holds the settings: `health_dashboard.toml` and `person.toml` (the first install makes them from the
+examples), `.env` and `secrets/`. `data_dir` in `health_dashboard.toml` sets the data folder: the database, the downloads
+and the logs. Put it where your backups are made; empty, it is `data/` in the app folder.
+
+## Development
+
+This repo is the app folder of the development copy: its settings, `.env`, `secrets/` and `data/` are next to the code.
+Give it its own port in `health_dashboard.toml`, so it can run next to the installed app.
 
 ```bash
 ./run_health_dashboard.sh          # or add --no-browser
 ```
 
 It installs missing packages, rebuilds the GUI when its source changed, starts the app, waits until it answers and
-opens http://127.0.0.1:8766. If the app is already running, it only opens the browser. Ctrl+C stops it; the app's output
-goes to `data/server.log`.
+opens the browser. If the app is already running, it only opens the browser. Ctrl+C stops it; the app's output goes to
+`data/server.log`.
 
-## Setup
-
-The Google code is in the library [google_api](https://github.com/marcdumon/google_api), linked from the folder next to
-this one:
+The Google code is in the library [google_api](https://github.com/marcdumon/google_api). An install takes it from
+GitHub; development uses the folder next to this one:
 
 ```bash
 git clone https://github.com/marcdumon/google_api ../google_api

@@ -1,6 +1,11 @@
 # Copy this file to health_dashboard.toml (not in git) and set your own folders. An empty value turns that part off; the
 # card of that part then says what to set here.
 
+# the folder of the database, the downloads and the logs (put it where your backups are made); empty: the folder data in
+# the app folder
+# for example data_dir = '/path/to/backed_up/health_dashboard'
+data_dir = ''
+
 [server]
 # the app answers on http://127.0.0.1:<port> only (the Automation desk uses 8765, the Polar H10 logger 8770)
 port = 8766

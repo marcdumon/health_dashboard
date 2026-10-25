@@ -1,6 +1,8 @@
 """Shared test fixtures: every test has its own database and folders, and no test reaches Withings, Google Health, the
 Polar logger, the phone, the Sleep as Android backup or the user's own values."""
 
+from pathlib import Path
+
 import pytest
 
 from health_dashboard import config as config_module
@@ -10,7 +12,7 @@ from health_dashboard import ledger as ledger_store
 @pytest.fixture(autouse=True)
 def example_settings(monkeypatch: pytest.MonkeyPatch):
     """Every test reads health_dashboard.example.toml, never the user's own health_dashboard.toml (not in git)."""
-    monkeypatch.setattr(config_module, 'CONFIG_FILE', config_module.ROOT / 'health_dashboard.example.toml')
+    monkeypatch.setattr(config_module, 'CONFIG_FILE', Path(__file__).parents[1] / 'health_dashboard.example.toml')
     config_module.config.cache_clear()
     yield
     config_module.config.cache_clear()

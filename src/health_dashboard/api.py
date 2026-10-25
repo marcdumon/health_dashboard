@@ -517,7 +517,7 @@ def fitbit_download(day: str | None = None) -> dict:
 
 @app.post('/api/health/fitbit/login')
 def fitbit_login(day: str | None = None) -> dict:
-    """Open the Google Health consent page in the local browser and wait for it; the token goes to the project's secrets."""
+    """Open the Google Health consent page in the local browser and wait for it; the token goes to the secrets of the app folder."""
     health_fitbit.login()
     return _health_view(_health_day(day))
 

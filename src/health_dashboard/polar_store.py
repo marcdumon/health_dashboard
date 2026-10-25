@@ -8,9 +8,9 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 
 from health_dashboard import ledger
-from health_dashboard.config import ROOT
+from health_dashboard.config import DATA_DIR
 
-RAW_DB = ROOT / 'data' / 'polar.db'
+RAW_DB = DATA_DIR / 'polar.db'
 RAW_SCHEMA = '''
 CREATE TABLE IF NOT EXISTS blocks (
     session_id INTEGER NOT NULL, stream TEXT NOT NULL, host_ms INTEGER NOT NULL, sensor_ns INTEGER NOT NULL, rate REAL NOT NULL,

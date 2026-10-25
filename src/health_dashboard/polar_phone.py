@@ -19,7 +19,7 @@ from urllib.parse import unquote, urlsplit
 
 from dotenv import dotenv_values
 
-from health_dashboard.config import ROOT, config
+from health_dashboard.config import APP_DIR, config
 
 PASSWORD_KEY = 'POLAR_PHONE_FTP_PASSWORD'
 TIMEOUT_S = 15
@@ -77,7 +77,7 @@ def address() -> Address | None:
     if not url:
         return None
     parts = urlsplit(url)
-    password = dotenv_values(ROOT / '.env').get(PASSWORD_KEY) or os.environ.get(PASSWORD_KEY, '')
+    password = dotenv_values(APP_DIR / '.env').get(PASSWORD_KEY) or os.environ.get(PASSWORD_KEY, '')
     return Address(parts.hostname or '', parts.port or 21, unquote(parts.username or 'anonymous'), password,
                    unquote(parts.path) or '/')
 

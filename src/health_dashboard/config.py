@@ -1,5 +1,9 @@
-"""Settings from `health_dashboard.toml`, the user's own values from `person.toml` (not in git) and secrets from `.env`."""
+"""Settings from `health_dashboard.toml`, the user's own values from `person.toml` (not in git) and secrets from `.env`.
 
+These files are in the app folder: the folder of the Python environment (the repo in development, the install folder of an
+installed app). The database, the downloads and the logs are in the data folder: `data_dir` of `health_dashboard.toml`."""
+
+import sys
 import tomllib
 from dataclasses import dataclass
 from datetime import date
@@ -9,10 +13,19 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
-CONFIG_FILE = ROOT / 'health_dashboard.toml'
+APP_DIR = Path(sys.prefix).parent
+CONFIG_FILE = APP_DIR / 'health_dashboard.toml'
 # the user's own values: git ignores this file, person.example.toml shows its part
-PERSON_FILE = ROOT / 'person.toml'
+PERSON_FILE = APP_DIR / 'person.toml'
+
+
+def data_dir() -> Path:
+    """The data folder: data_dir of health_dashboard.toml, or the folder data in the app folder when it is not set."""
+    value = tomllib.loads(CONFIG_FILE.read_text()).get('data_dir', '') if CONFIG_FILE.is_file() else ''
+    return Path(value).expanduser() if value else APP_DIR / 'data'
+
+
+DATA_DIR = data_dir()
 
 
 @dataclass(frozen=True)
@@ -78,9 +91,9 @@ class Config:
 @cache
 def config() -> Config:
     """Load the config file once."""
-    load_dotenv(ROOT / '.env')
+    load_dotenv(APP_DIR / '.env')
     if not CONFIG_FILE.is_file():
-        raise SystemExit(f'No {CONFIG_FILE.name} in {ROOT}: copy health_dashboard.example.toml to {CONFIG_FILE.name}, '
+        raise SystemExit(f'No {CONFIG_FILE.name} in {APP_DIR}: copy health_dashboard.example.toml to {CONFIG_FILE.name}, '
                          'then set your own folders in it.')
     raw = tomllib.loads(CONFIG_FILE.read_text())
     return Config(

@@ -18,9 +18,9 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from health_dashboard import polar, polar_store, polar_values, store
-from health_dashboard.config import ROOT, config
+from health_dashboard.config import DATA_DIR, config
 
-LOG = ROOT / 'data' / 'polar_record.log'
+LOG = DATA_DIR / 'polar_record.log'
 COMMAND = ['uv', 'run', 'polar-h10', 'record']
 MARKERS = (polar_values.EFFORT_DONE,)
 # the logger opens its API only once the strap is connected, and the scan alone can take 20 s

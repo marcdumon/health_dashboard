@@ -235,7 +235,7 @@ def test_a_phone_that_does_not_answer_leaves_the_import_of_the_files_on_the_pc_a
 def test_the_place_on_the_phone_comes_from_the_config_and_the_password_from_env(monkeypatch, tmp_path) -> None:
     settings = SimpleNamespace(polar=SimpleNamespace(phone_ftp='ftp://user@192.168.1.20:2221/Documents/Polar_hr_data/'))
     monkeypatch.setattr(polar_phone, 'config', lambda: settings)
-    monkeypatch.setattr(polar_phone, 'ROOT', tmp_path)
+    monkeypatch.setattr(polar_phone, 'APP_DIR', tmp_path)
     (tmp_path / '.env').write_text('POLAR_PHONE_FTP_PASSWORD=0000\n')
     assert address() == polar_phone.Address('192.168.1.20', 2221, 'user', '0000', '/Documents/Polar_hr_data/')
     settings.polar.phone_ftp = ''

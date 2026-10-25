@@ -9,9 +9,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from health_dashboard.config import ROOT
+from health_dashboard.config import DATA_DIR
 
-DB = ROOT / 'data' / 'health.db'
+DB = DATA_DIR / 'health.db'
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS health_supplements (

@@ -16,7 +16,7 @@ import httpx
 from dotenv import dotenv_values
 
 from health_dashboard import ledger, store
-from health_dashboard.config import ROOT, config
+from health_dashboard.config import APP_DIR, config
 
 AUTHORIZE_URL = 'https://account.withings.com/oauth2_user/authorize2'
 TOKEN_URL = 'https://wbsapi.withings.net/v2/oauth2'
@@ -59,7 +59,7 @@ class TooSoon(WithingsError):
 
 def _env(name: str) -> str:
     """A setting of .env, read at every call (a new value works at once), else of the environment."""
-    return dotenv_values(ROOT / '.env').get(name) or os.environ.get(name, '')
+    return dotenv_values(APP_DIR / '.env').get(name) or os.environ.get(name, '')
 
 
 def credentials() -> tuple[str, str]:
