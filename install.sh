@@ -16,7 +16,7 @@ done
 mkdir -p "$APP"
 [[ -d $APP/env ]] || uv venv --quiet --python 3.13 "$APP/env"
 echo "Installing health_dashboard $VERSION in $APP/env ..."
-uv pip install --quiet --python "$APP/env/bin/python" --reinstall-package health-dashboard "git+https://github.com/$REPO@$VERSION"
+uv pip install --quiet --no-sources --python "$APP/env/bin/python" --reinstall-package health-dashboard "git+https://github.com/$REPO@$VERSION"
 
 for name in health_dashboard person; do
     if [[ ! -f $APP/$name.toml ]]; then
