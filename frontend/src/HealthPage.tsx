@@ -421,6 +421,11 @@ function Chart({ rows, title, unit, decimals, lines, note = '', group = '', conn
 }
 
 const one = (key: string, label: string): Line[] => [{ key, label, kind: 's1' }]
+// a value with its 7-day mean (the server's <key>_7d), the mean with one decimal more
+const MEAN_NOTE = '7-day mean: the mean of the readings of the 7 days up to each day; at least 3'
+const withMean = (key: string, label: string, decimals: number): Line[] => [
+  { key, label, kind: 's1' },
+  { key: `${key}_7d`, label: '7-day mean', kind: 's2', decimals: decimals + 1, name: `${label}, 7-day mean` }]
 
 // what a Polar H10 value of a session is, where its name does not say it
 const H10_NOTES: Record<string, string> = {
@@ -540,13 +545,13 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
                  lines={[{ key: 'diastolic', label: 'Diastolic', kind: 's1', name: 'Diastolic blood pressure' },
                          { key: 'diastolic_7d', label: 'Home diastolic (ESH)', kind: 's2', decimals: 1,
                            name: 'Home diastolic blood pressure (ESH)' }]} />
-          <Chart rows={rows} title="Pulse" unit="bpm" note="blood pressure monitor" decimals={0}
-                 lines={one('pulse', 'Pulse')} />
-          <Chart rows={rows} title="Heart rate (scale)" unit="bpm" note="standing" decimals={0}
-                 lines={one('heart_rate', 'Heart rate')} />
+          <Chart rows={rows} title="Pulse" unit="bpm" note={`blood pressure monitor, ${MEAN_NOTE}`} decimals={0}
+                 lines={withMean('pulse', 'Pulse', 0)} />
+          <Chart rows={rows} title="Heart rate (scale)" unit="bpm" note={`standing, ${MEAN_NOTE}`} decimals={0}
+                 lines={withMean('heart_rate', 'Heart rate', 0)} />
           {VESSELS.map(([key, label, unit, decimals]) => (
-            <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals}
-                   lines={one(key, label)} />
+            <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals} note={MEAN_NOTE}
+                   lines={withMean(key, label, decimals)} />
           ))}
         </div>
       )}

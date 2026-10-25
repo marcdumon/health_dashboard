@@ -9,7 +9,8 @@ import pytest
 
 from health_dashboard import history, ledger, trends
 
-KINDS = {'weight': 1, 'fat_ratio': 6, 'diastolic': 9, 'systolic': 10, 'muscle_mass': 76}
+KINDS = {'weight': 1, 'fat_ratio': 6, 'diastolic': 9, 'systolic': 10, 'pulse': 11, 'muscle_mass': 76,
+         'pulse_wave_velocity': 91, 'vascular_age': 155, 'nerve_health': 167}
 
 
 def reading(grpid: int, measured_at: str, hidden: bool = False, **values: float) -> None:
@@ -80,6 +81,24 @@ def test_the_home_blood_pressure_leaves_out_the_first_of_the_7_days_and_splits_t
     assert days['2026-07-07'] == {'systolic_7d': 124.0, 'diastolic_7d': 78.0}, 'without the 180/110 of 1 July'
     assert days['2026-07-06'] == {'systolic_7d': 139.5, 'diastolic_7d': 87.0}, 'from 1 to 6 July: with it'
     assert trends.home_pressure(date(2026, 7, 4)) is None
+
+
+def test_the_heart_and_vessel_values_have_a_7_day_mean_of_at_least_3_readings() -> None:
+    reading(1, '2026-07-01T08:00', systolic=130.0, diastolic=80.0, pulse=60.0)
+    reading(2, '2026-07-04T08:00', systolic=128.0, diastolic=82.0, pulse=70.0)
+    reading(3, '2026-07-07T08:00', systolic=126.0, diastolic=78.0, pulse=80.0)
+    reading(4, '2026-07-05T09:00', weight=80.0, pulse=95.0, pulse_wave_velocity=7.1, vascular_age=61.0, nerve_health=76.0)
+    reading(5, '2026-07-06T09:00', weight=80.0, pulse=94.0, pulse_wave_velocity=7.4, vascular_age=62.0, nerve_health=78.0)
+    reading(6, '2026-07-07T09:00', weight=80.0, pulse=90.0, pulse_wave_velocity=7.0, vascular_age=60.0, nerve_health=80.0)
+    reading(7, '2026-07-07T10:00', hidden=True, weight=90.0, pulse=200.0, pulse_wave_velocity=20.0, vascular_age=99.0,
+            nerve_health=1.0)
+    days = trends.day_values('2026-07-06', '2026-07-08')
+    seventh = days['2026-07-07']
+    assert seventh['pulse_7d'] == 70.0, 'the pulse of the blood pressure monitor: 1, 4 and 7 July'
+    assert seventh['heart_rate_7d'] == 93.0, 'the pulse of the scale apart, without the hidden 200'
+    assert (seventh['pulse_wave_velocity_7d'], seventh['vascular_age_7d'], seventh['nerve_health_7d']) == (7.17, 61.0, 78.0)
+    assert 'pulse_7d' not in days.get('2026-07-06', {}) and 'heart_rate_7d' not in days.get('2026-07-06', {}), 'only 2 readings'
+    assert days['2026-07-08']['heart_rate_7d'] == 93.0 and 'pulse_7d' not in days['2026-07-08'], '1 July is out of the 7 days'
 
 
 @pytest.mark.parametrize(('df', 't'), [(1, 12.706), (8, 2.306), (30, 2.042), (200, 1.96)])

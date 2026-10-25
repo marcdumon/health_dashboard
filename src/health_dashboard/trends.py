@@ -5,24 +5,31 @@ before the period so it has settled; the muscle % of each measurement comes from
 the weight: the least-squares slope of the day means of the 28 days up to a day, in kg a week, with its 95 % interval; a
 change counts only when the interval leaves out 0 (else "steady"). The home blood pressure of the ESH method: the mean of
 the readings of the 7 days up to a day without the first of them (day d-5 to d), with the morning (before 12:00) and the
-evening apart; no diagnostic thresholds. A hidden reading counts nowhere. A day is the calendar day of the local time
-(store.health_day)."""
+evening apart; no diagnostic thresholds. The 7-day mean of the other heart and vessel values (the pulse of the blood
+pressure monitor, the heart rate of the scale, the pulse wave velocity, the vascular age and the nerve health score): the
+mean of the readings of the 7 days up to a day, with at least ROLLING_MIN_READINGS. A hidden reading counts nowhere. A day
+is the calendar day of the local time (store.health_day)."""
 
 import math
 from datetime import date, datetime, timedelta
 
 from health_dashboard import ledger, store, withings
 
-WEIGHT, DIASTOLIC, SYSTOLIC = 1, 9, 10
+WEIGHT, DIASTOLIC, SYSTOLIC, PULSE = 1, 9, 10, 11
 # the whole-body scale kinds with a trend: weight, fat %, fat mass, muscle mass, bone mass, water, extracellular and
 # intracellular water, visceral fat, BMR and metabolic age; and the muscle %, from the muscle mass and the weight
 TREND_KINDS = (WEIGHT, 6, 8, 76, 88, 77, 168, 169, 170, 226, 227)
 TREND_NAMES = (*(withings.TYPES[kind] for kind in TREND_KINDS), 'muscle_ratio')
+# the heart and vessel values with a 7-day mean: the pulse of the blood pressure monitor, the heart rate (the pulse) of the
+# scale, the pulse wave velocity, the vascular age and the nerve health score
+ROLLING_NAMES = ('pulse', 'heart_rate', 'pulse_wave_velocity', 'vascular_age', 'nerve_health')
+ROLLING_KINDS = (SYSTOLIC, PULSE, 91, 155, 167)
 # the history keys of the derived values
-KEYS = (*(f'{name}_trend' for name in TREND_NAMES), 'systolic_7d', 'diastolic_7d')
+KEYS = (*(f'{name}_trend' for name in TREND_NAMES), 'systolic_7d', 'diastolic_7d', *(f'{name}_7d' for name in ROLLING_NAMES))
 TREND_PER_DAY, WARMUP_DAYS = 0.1, 120
 RATE_DAYS, RATE_MIN_DAYS = 28, 8
 ESH_DAYS, ESH_MIN_READINGS, MORNING_END_HOUR = 7, 4, 12
+ROLLING_DAYS, ROLLING_MIN_READINGS = 7, 3
 # the two-sided 95 % t value for 1 to 30 degrees of freedom; 1.96 beyond
 T95 = (12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120,
        2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042)
@@ -133,10 +140,37 @@ def home_pressure(day: date) -> dict | None:
     return _esh(day, _pressure(day - timedelta(days=ESH_DAYS), day))
 
 
+def _heart_readings(since: date, last: date) -> dict[str, list[tuple[date, float]]]:
+    """The readings of the heart and vessel values with a 7-day mean from day `since` to `last`, by name (ROLLING_NAMES):
+    day and value. The pulse of a blood pressure reading is the monitor's; any other pulse is the heart rate of the scale."""
+    groups: dict[int, dict] = {}
+    for grpid, kind, value, at in _rows(ROLLING_KINDS, since):
+        groups.setdefault(grpid, {'at': at, 'values': {}})['values'][kind] = value
+    found: dict[str, list[tuple[date, float]]] = {name: [] for name in ROLLING_NAMES}
+    for group in groups.values():
+        day = store.health_day(group['at'])
+        if day > last:
+            continue
+        for kind, value in group['values'].items():
+            if kind == SYSTOLIC:
+                continue
+            name = withings.TYPES[kind] if kind != PULSE or SYSTOLIC in group['values'] else 'heart_rate'
+            found[name].append((day, value))
+    return found
+
+
+def _rolling(day: date, readings: list[tuple[date, float]]) -> float | None:
+    """The mean of the readings of the ROLLING_DAYS up to `day`, to 0.01; None with fewer than ROLLING_MIN_READINGS."""
+    since = day - timedelta(days=ROLLING_DAYS - 1)
+    values = [value for when, value in readings if since <= when <= day]
+    return round(sum(values) / len(values), 2) if len(values) >= ROLLING_MIN_READINGS else None
+
+
 def day_values(first: str, last: str) -> dict[str, dict[str, float]]:
     """The derived values of each day from `first` to `last` for the history: the trend of each body composition value
-    on each day it was measured (weight_trend, fat_ratio_trend, ...), and systolic_7d and diastolic_7d (the home blood
-    pressure) on each day with enough readings."""
+    on each day it was measured (weight_trend, fat_ratio_trend, ...), systolic_7d and diastolic_7d (the home blood
+    pressure) and the 7-day mean of the other heart and vessel values (pulse_7d, heart_rate_7d, ...) on each day with
+    enough readings."""
     start, end = date.fromisoformat(first), date.fromisoformat(last)
     found: dict[str, dict[str, float]] = {}
     for name, means in _day_means(TREND_KINDS, start - timedelta(days=WARMUP_DAYS), end).items():
@@ -144,9 +178,13 @@ def day_values(first: str, last: str) -> dict[str, dict[str, float]]:
             if day >= start:
                 found.setdefault(day.isoformat(), {})[f'{name}_trend'] = round(trend, 2)
     readings = _pressure(start - timedelta(days=ESH_DAYS), end)
+    heart = _heart_readings(start - timedelta(days=ROLLING_DAYS), end)
     day = start
     while day <= end:
         if (home := _esh(day, readings)) is not None:
             found.setdefault(day.isoformat(), {}).update(systolic_7d=home['systolic'], diastolic_7d=home['diastolic'])
+        for name, values in heart.items():
+            if (mean := _rolling(day, values)) is not None:
+                found.setdefault(day.isoformat(), {})[f'{name}_7d'] = mean
         day += timedelta(days=1)
     return found
