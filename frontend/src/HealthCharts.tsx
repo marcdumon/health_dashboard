@@ -17,7 +17,8 @@ const longDay = (day: string) =>
 
 // label: the legend in a chart of two; name: the full name in the large view ('Systolic blood pressure'); dots: each value
 // as a dot, without a line (the HRV tests under their 7-day mean)
-export type Line = { key: string; label: string; kind: 's1' | 's2'; name?: string; dots?: boolean }
+// decimals: the values of this line, when they differ from the chart's (the axis keeps the chart's)
+export type Line = { key: string; label: string; kind: 's1' | 's2'; name?: string; dots?: boolean; decimals?: number }
 export const clockOf = (iso: string) => new Date(iso).toTimeString().slice(0, 5)
 // the place of a time in the days of a chart: the index of its day plus the part of the day passed
 export const dayPart = (iso: string) => {
@@ -124,6 +125,19 @@ export function LineChart({ rows, lines, unit, decimals, label, onPick, connect 
     const i = Math.round(((clientX - box.left - PAD.left) / plotW) * rows.length - 0.5)
     setHover(Math.min(rows.length - 1, Math.max(0, i)))
   }
+  // the end labels of the lines, moved apart where two would overlap; the end dots stay at their values
+  const endValue = (l: Line): number | null => {
+    if (isTimed(l)) return timed[l.key][timed[l.key].length - 1].v
+    const last = [...rows].reverse().find(r => read(r, l.key) !== null)
+    return last ? read(last, l.key) : null
+  }
+  const labelY = new Map<string, number>()
+  lines.filter(l => !l.dots).map(l => ({ key: l.key, v: endValue(l) })).filter(e => e.v !== null)
+    .map(e => ({ key: e.key, at: y(e.v!) + 4 })).sort((a, b) => a.at - b.at)
+    .forEach((e, n, all) => {
+      const above = n ? labelY.get(all[n - 1].key)! : -Infinity
+      labelY.set(e.key, Math.max(e.at, above + 12))
+    })
   const h = hover === null ? null : rows[hover]
   return (
     <div className="chart" ref={ref}>
@@ -156,7 +170,7 @@ export function LineChart({ rows, lines, unit, decimals, label, onPick, connect 
                 {!l.dots && (
                   <>
                     <circle cx={at(end.f)} cy={y(end.v)} r={4} className={`dot ${l.kind}`} />
-                    <text x={at(end.f) + 8} y={y(end.v) + 4} className="end-label">{end.v.toFixed(decimals)}</text>
+                    <text x={at(end.f) + 8} y={labelY.get(l.key)} className="end-label">{end.v.toFixed(l.decimals ?? decimals)}</text>
                   </>
                 )}
                 {found.filter(t => t.i === hover).map(t => (
@@ -175,8 +189,8 @@ export function LineChart({ rows, lines, unit, decimals, label, onPick, connect 
               {last && !l.dots && (
                 <>
                   <circle cx={x(last.i)} cy={y(read(last.r, l.key)!)} r={4} className={`dot ${l.kind}`} />
-                  <text x={x(last.i) + 8} y={y(read(last.r, l.key)!) + 4} className="end-label">
-                    {read(last.r, l.key)!.toFixed(decimals)}
+                  <text x={x(last.i) + 8} y={labelY.get(l.key)} className="end-label">
+                    {read(last.r, l.key)!.toFixed(l.decimals ?? decimals)}
                   </text>
                 </>
               )}
@@ -191,11 +205,11 @@ export function LineChart({ rows, lines, unit, decimals, label, onPick, connect 
           // a line of recordings: each recording of the day with its clock time
           const found = isTimed(l) ? timed[l.key].filter(t => t.i === hover) : []
           if (found.length) {
-            return found.map(t => ({ key: `${inText(l.label)} at ${clockOf(t.at)} ${unit}`.trim(), value: t.v.toFixed(decimals),
+            return found.map(t => ({ key: `${inText(l.label)} at ${clockOf(t.at)} ${unit}`.trim(), value: t.v.toFixed(l.decimals ?? decimals),
                                      kind: l.kind }))
           }
           const v = isTimed(l) ? null : read(h, l.key)
-          return [{ key: `${inText(l.label)} ${unit}`.trim(), value: v === null ? '—' : v.toFixed(decimals), kind: l.kind }]
+          return [{ key: `${inText(l.label)} ${unit}`.trim(), value: v === null ? '—' : v.toFixed(l.decimals ?? decimals), kind: l.kind }]
         }), ...(band && read(h, band.low) !== null && read(h, band.high) !== null
           ? [{ key: band.label.toLowerCase(), kind: 'band',
                value: `${read(h, band.low)!.toFixed(decimals)}–${read(h, band.high)!.toFixed(decimals)}` }] : [])],

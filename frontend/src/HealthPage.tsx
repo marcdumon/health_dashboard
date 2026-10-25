@@ -386,6 +386,8 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
 }
 
 const RANGES = [30, 90, 365]
+// the home blood pressure line of the systolic and diastolic charts
+const HOME_BP_NOTE = 'home (ESH): the mean of the readings of the 7 days up to each day, without the first day; at least 4'
 const TABS: [string, string][] = [['heart', 'Heart and vessels'], ['h10', 'Polar H10'], ['hrv', 'HRV'], ['recovery', 'Recovery'],
                                   ['stairs', 'Stairs'], ['sleep', 'Sleep'], ['fitbit', 'Fitbit'], ['body', 'Body composition'], ['parts', 'Body parts'],
                                   ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['daily', 'Angina and ketones']]
@@ -530,13 +532,14 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
       )}
       {rows.length > 0 && tab === 'heart' && (
         <div className="health-charts">
-          <Chart rows={rows} title="Blood pressure" unit="mmHg" decimals={0}
+          <Chart rows={rows} title="Systolic blood pressure" unit="mmHg" decimals={0} note={HOME_BP_NOTE}
                  lines={[{ key: 'systolic', label: 'Systolic', kind: 's1', name: 'Systolic blood pressure' },
-                         { key: 'diastolic', label: 'Diastolic', kind: 's2', name: 'Diastolic blood pressure' }]} />
-          <Chart rows={rows} title="Home blood pressure" unit="mmHg" decimals={1}
-                 note="ESH method: the mean of the readings of the 7 days up to each day, without the first day; at least 4"
-                 lines={[{ key: 'systolic_7d', label: 'Systolic', kind: 's1', name: 'Home systolic blood pressure (ESH)' },
-                         { key: 'diastolic_7d', label: 'Diastolic', kind: 's2', name: 'Home diastolic blood pressure (ESH)' }]} />
+                         { key: 'systolic_7d', label: 'Home systolic (ESH)', kind: 's2', decimals: 1,
+                           name: 'Home systolic blood pressure (ESH)' }]} />
+          <Chart rows={rows} title="Diastolic blood pressure" unit="mmHg" decimals={0} note={HOME_BP_NOTE}
+                 lines={[{ key: 'diastolic', label: 'Diastolic', kind: 's1', name: 'Diastolic blood pressure' },
+                         { key: 'diastolic_7d', label: 'Home diastolic (ESH)', kind: 's2', decimals: 1,
+                           name: 'Home diastolic blood pressure (ESH)' }]} />
           <Chart rows={rows} title="Pulse" unit="bpm" note="blood pressure monitor" decimals={0}
                  lines={one('pulse', 'Pulse')} />
           <Chart rows={rows} title="Heart rate (scale)" unit="bpm" note="standing" decimals={0}
