@@ -1,0 +1,19 @@
+# Your own values for the health dashboard. Copy this file to person.toml in the app folder (git ignores person.toml, so
+# your values stay on your PC), change the values, and restart the app.
+
+[person]
+# your birth date (YYYY-MM-DD): your age in the year of a session gives the HR zones (220 - age is the maximum HR) and the
+# energy expenditure
+birth_date = '1970-01-31'
+# 'male' or 'female': the equation of the energy expenditure (Keytel et al. 2005) is not the same for both
+sex = 'female'
+# the app gives the net energy expenditure of a session: what the exercise adds to your basal metabolic rate (BMR). From
+# this HR on (bpm), a second adds the energy of its HR minus your BMR; below it, it adds nothing
+energy_from_hr = 90
+# your correction of the net energy expenditure (0.3 to 2): the active (net) kcal of a reference (a gym machine, a lab
+# test) for one session divided by the kcal the app gives for that same session; when the reference gives the total kcal,
+# first take off your BMR for the time of the session (BMR in kcal a day x minutes / 1440); 1 = no correction
+energy_factor = 1.0
+# only needed without a Withings scale: your weight in kg, and your height in cm for the BMR (Mifflin-St Jeor equation)
+# weight_kg = 70
+# height_cm = 170

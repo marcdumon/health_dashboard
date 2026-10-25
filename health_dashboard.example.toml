@@ -1,0 +1,34 @@
+# Copy this file to health_dashboard.toml (not in git) and set your own folders. An empty value turns that part off; the
+# card of that part then says what to set here.
+
+[server]
+# the app answers on http://127.0.0.1:<port> only (the Automation desk uses 8765, the Polar H10 logger 8770)
+port = 8766
+
+[time]
+# the time zone of the days of the dashboard: a day runs from midnight to midnight in this zone
+timezone = 'Europe/Brussels'
+
+[polar]
+# the Polar Sensor Logger files (phone) and the sessions of the logger on the PC, read only on an import (the import button,
+# or the end of a recording on the PC); the logger's project folder, where Start recording runs it
+# for example phone_dir = '/path/to/polar_h10_logger/phone_sessions'
+phone_dir = ''
+# for example logger_dir = '/path/to/polar_h10_logger/pc_sessions'
+logger_dir = ''
+# for example logger_project = '/path/to/polar_h10_logger'
+logger_project = ''
+# the folder of the Polar Sensor Logger files on the phone, through the phone app WiFi FTP Server: Import from phone and PC
+# first moves its files to phone_dir (copied, then deleted on the phone); the password is POLAR_PHONE_FTP_PASSWORD in .env
+# for example phone_ftp = 'ftp://user@192.168.1.20:2221/Documents/Polar_hr_data/'
+phone_ftp = ''
+
+[sleep]
+# the Sleep as Android backup: the phone's SleepCloud add-on writes it to Dropbox, the Dropbox app syncs it here; read only
+# on Import sleep
+# for example backup_file = '/path/to/Dropbox/Apps/Sleep Cloud Backup/Sleep as Android Data.zip'
+backup_file = ''
+
+[fitbit]
+# the first day Download Fitbit gets from Google Health: the day the tracker was first worn (YYYY-MM-DD)
+first_day = ''

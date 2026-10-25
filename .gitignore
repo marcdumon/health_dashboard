@@ -1,0 +1,14 @@
+.venv/
+.pytest_cache/
+__pycache__/
+.env
+!.env.example
+frontend/node_modules/
+frontend/dist/
+src/health_dashboard/static/
+secrets/
+data/
+.ruff_cache/
+*.tsbuildinfo
+person.toml
+health_dashboard.toml

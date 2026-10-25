@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# start the health dashboard: packages, GUI build when its source changed, the app, then the browser.
+# Usage: ./run_health_dashboard.sh [--no-browser]     Ctrl+C stops the app.
+set -euo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")"
+if [[ ! -f health_dashboard.toml ]]; then
+    cp health_dashboard.example.toml health_dashboard.toml
+    echo "Made health_dashboard.toml from the example: set your own folders in it."
+fi
+PORT=$(grep -E '^port *=' health_dashboard.toml | grep -oE '[0-9]+')
+URL="http://127.0.0.1:${PORT}"
+LOG=data/server.log
+OPEN_BROWSER=1
+[[ "${1:-}" == "--no-browser" ]] && OPEN_BROWSER=0
+
+open_browser() {
+    [[ $OPEN_BROWSER == 1 ]] && xdg-open "$URL" >/dev/null 2>&1 &
+    return 0
+}
+
+if curl -sf "$URL/api/version" >/dev/null 2>&1; then
+    echo "The health dashboard is already running at $URL"
+    open_browser
+    exit 0
+fi
+
+for tool in uv npm curl; do
+    command -v "$tool" >/dev/null || { echo "Missing '$tool': install it first." >&2; exit 1; }
+done
+
+echo 'Checking Python packages...'
+uv sync --quiet
+
+INDEX=src/health_dashboard/static/index.html
+if [[ ! -d frontend/node_modules ]]; then
+    echo 'Installing GUI packages (first run)...'
+    (cd frontend && npm install --silent)
+fi
+if [[ ! -f $INDEX ]] || [[ -n $(find frontend/src frontend/index.html frontend/vite.config.ts -newer "$INDEX" -print -quit) ]]; then
+    echo 'Building the GUI...'
+    (cd frontend && npm run build --silent >/dev/null)
+fi
+
+mkdir -p data
+echo "Starting the app (log: $LOG)..."
+uv run health-dashboard >>"$LOG" 2>&1 &
+APP=$!
+trap 'echo; echo "Stopping the health dashboard."; kill $APP 2>/dev/null; wait $APP 2>/dev/null; exit 0' INT TERM
+
+for _ in $(seq 1 40); do
+    if curl -sf "$URL/api/version" >/dev/null 2>&1; then
+        echo "The health dashboard is running at $URL  (Ctrl+C to stop)"
+        open_browser
+        wait $APP
+        exit $?
+    fi
+    if ! kill -0 $APP 2>/dev/null; then
+        echo "The app stopped while starting. Last lines of $LOG:" >&2
+        tail -n 20 "$LOG" >&2
+        exit 1
+    fi
+    sleep 0.5
+done
+echo "The app did not answer within 20 seconds. Last lines of $LOG:" >&2
+tail -n 20 "$LOG" >&2
+kill $APP 2>/dev/null
+exit 1
