@@ -44,12 +44,19 @@ def _sessions(first: date, last: date) -> list[dict]:
         edges = [*limits, None]
         zones = ', '.join(f'SUM(hr >= {low}' + (f' AND hr < {high})' if high is not None else ')') for low, high in
                           zip(limits, edges[1:], strict=True))
+        # a joined session counts the seconds of all its recordings
+        owner = polar_store.owners(ids)
         with ledger.connect() as db:
             rows = db.execute(f"SELECT session_id, {zones}, SUM(hr >= ? AND hr < ?), SUM(hr >= ?) FROM polar_seconds WHERE "
-                              f"hr IS NOT NULL AND session_id IN ({', '.join('?' * len(ids))}) GROUP BY session_id",
-                              (MODERATE * top, VIGOROUS * top, VIGOROUS * top, *ids)).fetchall()
+                              f"hr IS NOT NULL AND session_id IN ({', '.join('?' * len(owner))}) GROUP BY session_id",
+                              (MODERATE * top, VIGOROUS * top, VIGOROUS * top, *owner)).fetchall()
+        totals: dict[int, list[int]] = {}
         for session_id, *seconds in rows:
-            *zone, moderate, vigorous = (s or 0 for s in seconds)
+            counts = [s or 0 for s in seconds]
+            before = totals.get(owner[session_id], [0] * len(counts))
+            totals[owner[session_id]] = [a + b for a, b in zip(before, counts, strict=True)]
+        for session_id, seconds in totals.items():
+            *zone, moderate, vigorous = seconds
             _memory[key[session_id]] = {'trimp': sum(s / 60 * (k + 1) for k, s in enumerate(zone)), 'moderate': moderate / 60,
                                         'vigorous': vigorous / 60}
     return [s | _memory[key[s['id']]] for s in sessions if key[s['id']] in _memory]

@@ -681,6 +681,31 @@ def polar_show_selected(given: PolarSessions) -> dict:
     return _polar_mark(given.ids, False)
 
 
+@app.post('/api/health/polar/sessions/join')
+def polar_join(given: PolarSessions) -> dict:
+    """Join the selected sessions, which a glitch of the logger app cut apart, into the first of them; Split takes them
+    apart again."""
+    try:
+        polar_store.join(given.ids)
+    except KeyError as error:
+        raise HTTPException(404, 'There is no such Polar H10 session. Reload the page.') from error
+    except polar_store.JoinError as error:
+        raise HTTPException(400, str(error)) from error
+    return {'ok': True}
+
+
+@app.post('/api/health/polar/sessions/{session_id}/split')
+def polar_split(session_id: int) -> dict:
+    """Take a joined session apart again, at once."""
+    try:
+        polar_store.split(session_id)
+    except KeyError as error:
+        raise HTTPException(404, 'There is no such Polar H10 session. Reload the page.') from error
+    except polar_store.JoinError as error:
+        raise HTTPException(400, str(error)) from error
+    return {'ok': True}
+
+
 @app.post('/api/health/polar/sessions/{session_id}/remove')
 def polar_remove(session_id: int) -> dict:
     """Remove a wrong session at once; Show again puts it back."""

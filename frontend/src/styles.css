@@ -779,3 +779,5 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .health-food-label { width: 64px; font-size: 13px; color: var(--muted); }
 .health-scores .choice-chip.counted { border-color: var(--accent); border-style: dashed; }
 .health-day-food { margin: 0 0 8px; font-size: 13px; }
+.polar-row-actions { white-space: nowrap; }
+.polar-row-actions button + button { margin-left: 6px; }

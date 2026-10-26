@@ -44,14 +44,19 @@ def _on(found: tuple[list[str], list[float]], day: str) -> float | None:
 
 
 def _seconds(ids: list[int], from_hr: int) -> dict[int, tuple[int, float]]:
-    """Of each session: its seconds with an HR from `from_hr` on, and the sum of their HR."""
+    """Of each session (of all its recordings): its seconds with an HR from `from_hr` on, and the sum of their HR."""
     if not ids:
         return {}
+    owner = polar_store.owners(ids)
     with ledger.connect() as db:
         rows = db.execute(f'SELECT session_id, SUM(hr >= ?), TOTAL(CASE WHEN hr >= ? THEN hr END) FROM polar_seconds '
-                          f"WHERE hr IS NOT NULL AND session_id IN ({', '.join('?' * len(ids))}) GROUP BY session_id",
-                          (from_hr, from_hr, *ids)).fetchall()
-    return {r[0]: (r[1], r[2]) for r in rows}
+                          f"WHERE hr IS NOT NULL AND session_id IN ({', '.join('?' * len(owner))}) GROUP BY session_id",
+                          (from_hr, from_hr, *owner)).fetchall()
+    found: dict[int, tuple[int, float]] = {}
+    for session_id, count, total in rows:
+        before = found.get(owner[session_id], (0, 0.0))
+        found[owner[session_id]] = (before[0] + count, before[1] + total)
+    return found
 
 
 def missing() -> str:

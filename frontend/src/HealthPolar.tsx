@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
-  addPolarActivity, getPolarActivities, getPolarDay, getPolarSessions, getPolarWaiting, importPolar, removePolarActivity,
-  removePolarSession, removePolarSessions, renamePolarActivity, showPolarSession, showPolarSessions,
+  addPolarActivity, getPolarActivities, getPolarDay, getPolarSessions, getPolarWaiting, importPolar, joinPolarSessions,
+  removePolarActivity, removePolarSession, removePolarSessions, renamePolarActivity, showPolarSession, showPolarSessions,
+  splitPolarSession,
   type HealthView,
   type PolarActivity, type PolarHrvCard, type PolarRecoveryCard, type PolarSession, type PolarStairsCard, type PolarStatus,
 } from './api'
@@ -338,6 +339,11 @@ function SessionTable({ sessions, select, onOpen }: { sessions: PolarSession[]; 
   const showing = sessions.every(s => s.removed)
   const many = useMutation({ mutationFn: (ids: number[]) => (showing ? showPolarSessions(ids) : removePolarSessions(ids)),
                              onSuccess: () => { setAll(false); setPicked(new Set()); forget() } })
+  // sessions that a glitch of the logger app cut apart: join the selected ones into the first of them; Split undoes it
+  const join = useMutation({ mutationFn: (ids: number[]) => joinPolarSessions(ids),
+                             onSuccess: () => { setAll(false); setPicked(new Set()); forget() } })
+  const split = useMutation({ mutationFn: (id: number) => splitPolarSession(id), onSuccess: forget })
+  const busy = many.isPending || join.isPending
   const loading = all && select !== undefined && sessions.length < select.total
   const everyOne = chosen.length > 0 && chosen.length === sessions.length && !loading
   const tickAll = (on: boolean) => {
@@ -361,9 +367,13 @@ function SessionTable({ sessions, select, onOpen }: { sessions: PolarSession[]; 
     <>
       {select && (
         <div className="polar-selected">
-          <button type="button" className="quiet" disabled={n === 0 || loading || many.isPending}
+          <button type="button" className="quiet" disabled={n === 0 || loading || busy}
                   onClick={() => many.mutate(chosen.map(s => s.id))}>{label}</button>
-          {many.isError && <p className="cap-error">{many.error.message}</p>}
+          {!showing && (
+            <button type="button" className="quiet" disabled={n < 2 || loading || busy}
+                    onClick={() => join.mutate(chosen.map(s => s.id))}>{n >= 2 ? `Join ${n} sessions` : 'Join selected'}</button>
+          )}
+          {(many.error ?? join.error) && <p className="cap-error">{(many.error ?? join.error)?.message}</p>}
         </div>
       )}
       <div className="health-table polar-sessions">
@@ -372,7 +382,7 @@ function SessionTable({ sessions, select, onOpen }: { sessions: PolarSession[]; 
             <tr>
               {select && (
                 <th scope="col" className="tick">
-                  <input type="checkbox" aria-label="Select all sessions" checked={everyOne} disabled={many.isPending}
+                  <input type="checkbox" aria-label="Select all sessions" checked={everyOne} disabled={busy}
                          ref={box => { if (box) box.indeterminate = n > 0 && !everyOne }} onChange={e => tickAll(e.target.checked)} />
                 </th>
               )}
@@ -387,26 +397,31 @@ function SessionTable({ sessions, select, onOpen }: { sessions: PolarSession[]; 
                 {select && (
                   <td className="tick">
                     <input type="checkbox" aria-label={`Select the session of ${started(s.start_at)}`}
-                           checked={picked.has(s.id)} disabled={many.isPending} onChange={e => tick(s.id, e.target.checked)} />
+                           checked={picked.has(s.id)} disabled={busy} onChange={e => tick(s.id, e.target.checked)} />
                   </td>
                 )}
                 <td>
                   {onOpen ? <button type="button" className="link" onClick={() => onOpen(s.id)}>{started(s.start_at)}</button>
                     : started(s.start_at)}
                   <small className="muted polar-source">{s.source === 'logger' ? 'PC' : 'phone'}
-                    {s.copy_of_start && `, copy of the PC session of ${clockOf(s.copy_of_start)}`}</small>
+                    {s.copy_of_start && `, copy of the PC session of ${clockOf(s.copy_of_start)}`}
+                    {s.recordings > 1 && `, ${s.recordings} recordings joined`}</small>
                 </td>
                 <td><ActivityChoice session={s} /></td>
                 <td className="num">{minutes(s.seconds)}</td>
                 <td className="num">{whole(s.mean_hr)}</td>
                 <td className="num">{whole(s.max_hr)}</td>
-                <td><button type="button" className="quiet" disabled={mark.isPending} onClick={() => mark.mutate(s)}>
-                  {s.removed ? 'Show again' : 'Remove'}</button></td>
+                <td className="polar-row-actions">
+                  {s.recordings > 1 && (
+                    <button type="button" className="quiet" disabled={split.isPending} onClick={() => split.mutate(s.id)}>Split</button>
+                  )}
+                  <button type="button" className="quiet" disabled={mark.isPending} onClick={() => mark.mutate(s)}>
+                    {s.removed ? 'Show again' : 'Remove'}</button></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {mark.isError && <p className="cap-error">{mark.error.message}</p>}
+        {(mark.error ?? split.error) && <p className="cap-error">{(mark.error ?? split.error)?.message}</p>}
       </div>
     </>
   )

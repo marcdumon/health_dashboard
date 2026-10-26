@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
+from itertools import pairwise
 
 from health_dashboard import ledger
 from health_dashboard.config import DATA_DIR
@@ -34,8 +35,12 @@ FIELDS = ('source', 'serial', 'path', 'start_at', 'end_at', 'day', 'kind', 'seco
           'wrong_beats_pct', 'imported_at')
 SHOWN = ('id, source, serial, start_at, end_at, day, kind, seconds, mean_hr, max_hr, rest_hr, rmssd, '
          'wrong_beats_pct, copy_of, removed, activity_id, note')
-# the sessions that count in the history: not removed, not a copy of a logger session
-COUNTED = 's.removed = 0 AND s.copy_of IS NULL'
+# the sessions that count in the history: not removed, not a copy of a logger session, not a recording joined to the session
+# before it. A glitch of the logger app can cut one session in two; the user joins them, and the first one (joined_to of
+# the others) counts for all of them. Each recording keeps its own rows: the reads of a session take those of all its
+# recordings (FAMILY), so a join stays when a file is read again, and Split takes it apart
+COUNTED = 's.removed = 0 AND s.copy_of IS NULL AND s.joined_to IS NULL'
+FAMILY = '(SELECT id FROM polar_sessions WHERE id = :id OR joined_to = :id)'
 # the name in the weekly minutes of the sessions without an activity
 NO_ACTIVITY = 'No activity'
 # the activities of the tests, and the SQL conditions (on the alias s) for the sessions that are HRV tests and those that
@@ -84,8 +89,9 @@ def save(row: dict, seconds: list[tuple], beats: list[tuple], blocks: list[tuple
          markers: list[tuple] = ()) -> int:
     """Store one session: its row, its seconds (t, hr, movement), its beats (t_ms, rr_ms, clean), its raw blocks and its
     markers (t_ms, label, hr). A session read before (the same source and path, or the same strap
-    and start) keeps its number and its removed state; its earlier seconds, beats, markers and blocks are replaced. The
-    files are noted last, so a failure reads them again next time."""
+    and start) keeps its number, its removed state and its join; its earlier seconds, beats, markers and blocks are
+    replaced, and a joined session gets its row from all its recordings again. The files are noted last, so a failure reads
+    them again next time."""
     values = [row[f] for f in FIELDS]
     with ledger.connect(write=True) as db:
         old = db.execute('SELECT id FROM polar_sessions WHERE source = ? AND (path = ? OR (serial = ? AND start_at = ?))',
@@ -105,6 +111,9 @@ def save(row: dict, seconds: list[tuple], beats: list[tuple], blocks: list[tuple
                        [(session_id, *b) for b in beats])
         db.executemany('INSERT INTO polar_markers (session_id, t_ms, label, hr) VALUES (?, ?, ?, ?)',
                        [(session_id, *m) for m in markers])
+        joined = db.execute('SELECT COALESCE(joined_to, id) FROM polar_sessions WHERE id = ?', (session_id,)).fetchone()[0]
+        if joined != session_id or db.execute('SELECT 1 FROM polar_sessions WHERE joined_to = ?', (session_id,)).fetchone():
+            _summarise(db, joined)
     with raw(write=True) as db:
         db.execute('DELETE FROM blocks WHERE session_id = ?', (session_id,))
         db.executemany('INSERT INTO blocks (session_id, stream, host_ms, sensor_ns, rate, count, channels, data) '
@@ -137,43 +146,50 @@ def _at(t_ms: int) -> str:
 
 
 def _dicts(db: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[dict]:
-    """The sessions as dicts, each with its activity's name, the start of the session it is a copy of and its markers in time
-    order."""
+    """The sessions as dicts, each with its activity's name, the start of the session it is a copy of, its markers in time
+    order (of all its recordings) and how many recordings it joins (1: none joined)."""
     copies = sorted({r['copy_of'] for r in rows if r['copy_of']})
     starts = dict(db.execute(f"SELECT id, start_at FROM polar_sessions WHERE id IN ({', '.join('?' * len(copies))})",
                              copies).fetchall()) if copies else {}
     ids = [r['id'] for r in rows]
     marks: dict[int, list[dict]] = {}
+    parts: dict[int, int] = {}
     if ids:
-        for m in db.execute(f"SELECT * FROM polar_markers WHERE session_id IN ({', '.join('?' * len(ids))}) ORDER BY t_ms",
-                            ids):
-            marks.setdefault(m['session_id'], []).append({'at': _at(m['t_ms']), 'label': m['label'], 'hr': m['hr']})
+        holes = ', '.join('?' * len(ids))
+        parts = dict(db.execute(f'SELECT joined_to, COUNT(*) FROM polar_sessions WHERE joined_to IN ({holes}) GROUP BY joined_to',
+                                ids).fetchall())
+        for m in db.execute('SELECT m.*, COALESCE(s.joined_to, s.id) AS owner FROM polar_markers m JOIN polar_sessions s ON '
+                            f's.id = m.session_id WHERE s.id IN ({holes}) OR s.joined_to IN ({holes}) ORDER BY m.t_ms', ids + ids):
+            marks.setdefault(m['owner'], []).append({'at': _at(m['t_ms']), 'label': m['label'], 'hr': m['hr']})
     kinds = {r['id']: (r['name'], r['test']) for r in db.execute('SELECT id, name, test FROM polar_activities')}
     return [dict(r) | {'removed': bool(r['removed']), 'copy_of_start': starts.get(r['copy_of']), 'markers': marks.get(r['id'], []),
                        'activity': kinds.get(r['activity_id'], (None, None))[0],
-                       'activity_test': kinds.get(r['activity_id'], (None, None))[1]} for r in rows]
+                       'activity_test': kinds.get(r['activity_id'], (None, None))[1],
+                       'recordings': parts.get(r['id'], 0) + 1} for r in rows]
 
 
 def sessions(offset: int, count: int) -> dict:
     """The sessions that are not removed, newest first, `count` from `offset`, and how many there are."""
     with ledger.connect() as db:
-        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE removed = 0 ORDER BY start_at DESC LIMIT ? OFFSET ?',
-                          (count, offset)).fetchall()
-        total = db.execute('SELECT COUNT(*) FROM polar_sessions WHERE removed = 0').fetchone()[0]
+        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE removed = 0 AND joined_to IS NULL ORDER BY start_at DESC '
+                          'LIMIT ? OFFSET ?', (count, offset)).fetchall()
+        total = db.execute('SELECT COUNT(*) FROM polar_sessions WHERE removed = 0 AND joined_to IS NULL').fetchone()[0]
         return {'sessions': _dicts(db, rows), 'total': total}
 
 
 def removed_sessions() -> list[dict]:
     """The sessions the user removed, newest first."""
     with ledger.connect() as db:
-        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE removed = 1 ORDER BY start_at DESC').fetchall()
+        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE removed = 1 AND joined_to IS NULL ORDER BY start_at DESC'
+                          ).fetchall()
         return _dicts(db, rows)
 
 
 def day_sessions(day: str) -> list[dict]:
-    """Every session of a day, removed ones too, in time order."""
+    """Every session of a day, removed ones too, in time order; a joined recording is in the session it is joined to."""
     with ledger.connect() as db:
-        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE day = ? ORDER BY start_at', (day,)).fetchall()
+        rows = db.execute(f'SELECT {SHOWN} FROM polar_sessions WHERE day = ? AND joined_to IS NULL ORDER BY start_at',
+                          (day,)).fetchall()
         return _dicts(db, rows)
 
 
@@ -184,17 +200,25 @@ def session(session_id: int) -> dict | None:
         return _dicts(db, [row])[0] if row else None
 
 
-def seconds(session_id: int) -> list[sqlite3.Row]:
-    """The seconds of a session in time order: t (epoch s), hr and movement (None where there is none)."""
+def seconds(session_id: int) -> list[dict]:
+    """The seconds of a session in time order, one for each second: t (epoch s), hr and movement (None where there is none,
+    as between the recordings of a joined session)."""
     with ledger.connect() as db:
-        return db.execute('SELECT t, hr, movement FROM polar_seconds WHERE session_id = ? ORDER BY t', (session_id,)).fetchall()
+        rows = db.execute(f'SELECT t, hr, movement FROM polar_seconds WHERE session_id IN {FAMILY} ORDER BY t',
+                          {'id': session_id}).fetchall()
+    found: list[dict] = []
+    for row in rows:
+        if found and row['t'] > found[-1]['t'] + 1:
+            found += [{'t': t, 'hr': None, 'movement': None} for t in range(found[-1]['t'] + 1, row['t'])]
+        found.append(dict(row))
+    return found
 
 
 def beats(session_id: int) -> list[sqlite3.Row]:
-    """The beats of a session in time order: t_ms, rr_ms and clean."""
+    """The beats of a session (of all its recordings) in time order: t_ms, rr_ms and clean."""
     with ledger.connect() as db:
-        return db.execute('SELECT t_ms, rr_ms, clean FROM polar_beats WHERE session_id = ? ORDER BY t_ms, rowid',
-                          (session_id,)).fetchall()
+        return db.execute(f'SELECT t_ms, rr_ms, clean FROM polar_beats WHERE session_id IN {FAMILY} ORDER BY t_ms, rowid',
+                          {'id': session_id}).fetchall()
 
 
 def sessions_of_test(test: str, first: str, last: str) -> list[dict]:
@@ -220,10 +244,10 @@ def marker_times(session_id: int, *labels: str) -> list[int]:
 
 
 def markers(session_id: int) -> list[tuple[int, str]]:
-    """The markers of a session (UTC ms, label), in time order."""
+    """The markers of a session (of all its recordings: UTC ms, label), in time order."""
     with ledger.connect() as db:
-        return [(r[0], r[1]) for r in db.execute('SELECT t_ms, label FROM polar_markers WHERE session_id = ? ORDER BY t_ms',
-                                                 (session_id,))]
+        return [(r[0], r[1]) for r in db.execute(f'SELECT t_ms, label FROM polar_markers WHERE session_id IN {FAMILY} '
+                                                 'ORDER BY t_ms', {'id': session_id})]
 
 
 def earlier(found: dict, count: int) -> list[dict]:
@@ -249,6 +273,77 @@ def set_removed(ids: list[int], removed: bool) -> int:
     with ledger.connect(write=True) as db:
         marks = ','.join('?' * len(ids))
         return db.execute(f'UPDATE polar_sessions SET removed = ? WHERE id IN ({marks})', (int(removed), *ids)).rowcount
+
+
+class JoinError(ValueError):
+    """Sessions that cannot be joined or split, with what to do."""
+
+
+def owners(ids: list[int]) -> dict[int, int]:
+    """Each of these sessions and each recording joined to one of them, with the session it counts in."""
+    if not ids:
+        return {}
+    with ledger.connect() as db:
+        parts = db.execute(f"SELECT id, joined_to FROM polar_sessions WHERE joined_to IN ({', '.join('?' * len(ids))})",
+                           ids).fetchall()
+    return {i: i for i in ids} | {r[0]: r[1] for r in parts}
+
+
+def _summarise(db: sqlite3.Connection, session_id: int) -> None:
+    """The row of a session from the seconds of all its recordings: its end at its last second, its length from its first
+    to its last second, and the mean and the maximum of its HR of each second. Its read time changes, so the training load
+    of the session is made again."""
+    first, last, mean, top = db.execute(f'SELECT MIN(t), MAX(t), AVG(hr), MAX(hr) FROM polar_seconds WHERE session_id IN {FAMILY}',
+                                        {'id': session_id}).fetchone()
+    if first is None:
+        return
+    db.execute('UPDATE polar_sessions SET end_at = ?, seconds = ?, mean_hr = ?, max_hr = ?, imported_at = ? WHERE id = ?',
+               (_at(last * 1000), last - first + 1, None if mean is None else round(mean, 1), top,
+                datetime.now(UTC).isoformat(timespec='seconds'), session_id))
+
+
+def join(ids: list[int]) -> int:
+    """Join sessions that a glitch cut apart into the first of them; its id. It keeps its activity (or takes the first
+    activity of the others) and its note. Refused: fewer than two sessions, a removed one, a copy, one joined before, a
+    test, sessions that overlap, and a session that counts between them but is not chosen. KeyError: no such session."""
+    chosen = sorted(set(ids))
+    if len(chosen) < 2:
+        raise JoinError('Select at least two sessions to join.')
+    holes = ', '.join('?' * len(chosen))
+    with ledger.connect(write=True) as db:
+        rows = db.execute(f'SELECT s.*, a.test FROM polar_sessions s LEFT JOIN polar_activities a ON a.id = s.activity_id '
+                          f'WHERE s.id IN ({holes}) ORDER BY s.start_at', chosen).fetchall()
+        if len(rows) < len(chosen):
+            raise KeyError(set(chosen) - {r['id'] for r in rows})
+        if any(r['removed'] for r in rows):
+            raise JoinError('A selected session is removed. Show it again first, or leave it out.')
+        if any(r['copy_of'] for r in rows):
+            raise JoinError('A selected session is a phone copy of a PC session. Join the PC sessions.')
+        if any(r['joined_to'] for r in rows):
+            raise JoinError('A selected session is already part of a joined session. Split that session first.')
+        if any(r['test'] for r in rows):
+            raise JoinError('A selected session is a test (HRV, HR recovery or stairs). Only other sessions can be joined.')
+        if any(after['start_at'] <= before['end_at'] for before, after in pairwise(rows)):
+            raise JoinError('The selected sessions overlap. Only sessions that follow each other can be joined.')
+        if db.execute(f'SELECT 1 FROM polar_sessions s WHERE {COUNTED} AND s.start_at > ? AND s.start_at < ? AND s.id NOT IN '
+                      f'({holes})', (rows[0]['start_at'], rows[-1]['end_at'], *chosen)).fetchone():
+            raise JoinError('Another session lies between the selected ones. Select it too, or remove it first.')
+        owner, others = rows[0]['id'], [r['id'] for r in rows[1:]]
+        activity = next((r['activity_id'] for r in rows if r['activity_id'] is not None), None)
+        db.execute('UPDATE polar_sessions SET activity_id = ? WHERE id = ?', (activity, owner))
+        db.execute(f"UPDATE polar_sessions SET joined_to = ? WHERE id IN ({', '.join('?' * len(others))})", (owner, *others))
+        _summarise(db, owner)
+    return owner
+
+
+def split(session_id: int) -> None:
+    """Take a joined session apart again, at once: each recording is a session of its own. KeyError: no such session."""
+    with ledger.connect(write=True) as db:
+        if db.execute('SELECT 1 FROM polar_sessions WHERE id = ?', (session_id,)).fetchone() is None:
+            raise KeyError(session_id)
+        if not db.execute('UPDATE polar_sessions SET joined_to = NULL WHERE joined_to = ?', (session_id,)).rowcount:
+            raise JoinError('This session is not joined, so it cannot be split.')
+        _summarise(db, session_id)
 
 
 def count() -> int:
@@ -340,10 +435,11 @@ def measure_s(session_id: int) -> int | None:
 
 
 def blocks(session_id: int, stream: str) -> list[sqlite3.Row]:
-    """The raw blocks of a stream ('ecg' or 'acc') of a session, in time order."""
+    """The raw blocks of a stream ('ecg' or 'acc') of a session (of all its recordings), in time order."""
+    ids = list(owners([session_id]))
     with raw() as db:
-        return db.execute('SELECT * FROM blocks WHERE session_id = ? AND stream = ? ORDER BY host_ms, sensor_ns',
-                          (session_id, stream)).fetchall()
+        return db.execute(f"SELECT * FROM blocks WHERE session_id IN ({', '.join('?' * len(ids))}) AND stream = ? "
+                          'ORDER BY host_ms, sensor_ns', (*ids, stream)).fetchall()
 
 
 def _chosen(activity: int | None) -> tuple[str, tuple]:

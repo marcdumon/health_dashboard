@@ -264,6 +264,8 @@ export type PolarSession = {
   wrong_beats_pct: number | null; copy_of: number | null; copy_of_start: string | null; removed: boolean
   markers: PolarMarker[]; activity_id: number | null; activity: string | null; activity_test: string | null
   note: string | null
+  // the recordings it joins: 1 for a session that is not joined
+  recordings: number
 }
 export const importPolar = (day: string) => call<HealthView>(`/api/health/polar/import?day=${day}`, {})
 export const getPolarSessions = (offset: number, limit: number) =>
@@ -273,6 +275,9 @@ export const removePolarSession = (id: number) => call<{ ok: boolean }>(`/api/he
 export const showPolarSession = (id: number) => call<{ ok: boolean }>(`/api/health/polar/sessions/${id}/show`, {})
 export const removePolarSessions = (ids: number[]) => call<{ ok: boolean }>('/api/health/polar/sessions/remove', { ids })
 export const showPolarSessions = (ids: number[]) => call<{ ok: boolean }>('/api/health/polar/sessions/show', { ids })
+// sessions that a glitch of the logger app cut apart, joined into the first of them; Split takes them apart again
+export const joinPolarSessions = (ids: number[]) => call<{ ok: boolean }>('/api/health/polar/sessions/join', { ids })
+export const splitPolarSession = (id: number) => call<{ ok: boolean }>(`/api/health/polar/sessions/${id}/split`, {})
 // the activities of the sessions, in list order, each with how many sessions have it; last_used: the activity of the
 // last recording started from the card
 // last_at: the start of the newest session that is not removed (null without one)

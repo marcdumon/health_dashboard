@@ -101,7 +101,7 @@ ADDED_COLUMNS = [('health_angina', 'not_measured', 'INTEGER NOT NULL DEFAULT 0')
                  ('polar_activities', 'test', 'TEXT'), ('polar_sessions', 'measure_s', 'INTEGER'),
                  ('health_supplement_list', 'dose_unit', 'TEXT'), ('health_supplement_list', 'step', 'REAL'),
                  ('health_units', 'amount', 'REAL'),
-                 ('health_units', 'moment', 'TEXT')]
+                 ('health_units', 'moment', 'TEXT'), ('polar_sessions', 'joined_to', 'INTEGER')]
 # the supplements had a why and an effects column from 2026-10-24 to their removal the same day: an older database keeps
 # them, unused
 # the split of the Polar H10 sessions in movement and still (removed on 2026-10-21) had the columns moving_s, still_s,
