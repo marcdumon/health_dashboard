@@ -106,7 +106,8 @@ def test_taken_logs_the_planned_amounts_of_a_moment_once() -> None:
     planned_day()
     view = supplements.day_view(DAY)
     assert [(m['name'], m['planned'], m['taken_at']) for m in view['moments']] == [
-        ('First meal', True, None), ('Midday', False, None), ('Afternoon', False, None), ('Evening meal', True, None)], \
+        ('First meal', True, None), ('Midday', False, None), ('Afternoon', False, None), ('Evening meal', True, None),
+        ('Any time', False, None)], \
         'no bedtime: what is taken then is taken when needed, without a plan'
     assert [(s['name'], s['planned'], s['total']) for s in view['items']] == [('Selenium', 12, 0), ('Calcium', 200, 0),
                                                                               ('Valerian', 0, 0)], \
@@ -225,9 +226,11 @@ def test_the_old_list_and_regime_become_doses_and_a_plan_once(monkeypatch: pytes
         'Selenium': ('mg', 3), 'Vitamin E': ('µg', 200), 'Vitamin B12': ('µg', 100), 'Lutein': ('mg', 882),
         'Creatine': ('g', 5), 'Biotin': ('mg', 750), 'Valeriane': ('mg', 5), 'Herbal tea': ('', None)}, \
         'the numbers of the first unit added; creatine is 5 g; no unit is a yes or no'
-    assert set(found['Selenium']) == {'id', 'name', 'dose_unit', 'step', 'plan', 'used'}, 'no why and no side effects'
+    assert set(found['Selenium']) == {'id', 'name', 'dose_unit', 'step', 'comment', 'plan', 'used'}, \
+        'no why and no side effects'
     first = date(2026, 10, 8)
-    assert plan(first, 'Selenium') == {'First meal': 6, 'Midday': 0, 'Afternoon': 0, 'Evening meal': 6}
+    assert plan(first, 'Selenium') == {'First meal': 6, 'Midday': 0, 'Afternoon': 0, 'Evening meal': 6,
+                                          'Any time': 0}
     assert (plan(first, 'Lutein')['First meal'], plan(date(2026, 10, 12), 'Creatine')['Afternoon']) == (1764, 10), \
         'the count of the dose times one pill; from the day the supplement was added'
     assert plan(date(2026, 10, 12), 'Biotin')['Afternoon'] == 1500, '1–2 is 2'
@@ -250,3 +253,25 @@ def test_the_old_list_and_regime_become_doses_and_a_plan_once(monkeypatch: pytes
 def test_a_new_database_starts_with_an_empty_list() -> None:
     assert supplements.day_view(DAY) == {'moments': [{'name': m, 'planned': False, 'taken_at': None} for m in supplements.MOMENTS],
                                          'items': []}
+
+
+def test_a_supplement_can_be_planned_at_any_time_of_the_day() -> None:
+    psyllium = supplements.add_supplement(DAY, 'Psyllium', 'g', 5)
+    supplements.change_supplement(psyllium, DAY, 'Psyllium', 'g', 5, {'Any time': 10})
+    assert supplements.regime(DAY)['moments'][-1] == 'Any time' and plan(DAY, 'Psyllium')['Any time'] == 10
+    assert [m['name'] for m in supplements.day_view(DAY)['moments'] if m['planned']] == ['Any time']
+    assert supplements.take_moment(DAY, 'Any time', '15:20') == 1
+    assert supplements.day_view(DAY)['moments'][-1]['taken_at'] == '15:20' and item(DAY, 'Psyllium')['total'] == 10
+
+
+def test_a_comment_says_how_to_take_a_supplement_and_a_change_without_one_keeps_it() -> None:
+    coq10 = supplements.add_supplement(DAY, 'CoQ10', 'mg', 100, ' with fat ')
+    assert next(s for s in supplements.regime(DAY)['items'] if s['id'] == coq10)['comment'] == 'with fat'
+    supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {'First meal': 100}, 'with a meal')
+    assert item(DAY, 'CoQ10')['comment'] == 'with a meal'
+    supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {'First meal': 100})
+    assert item(DAY, 'CoQ10')['comment'] == 'with a meal', 'no comment given: it stays'
+    supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {'First meal': 100}, '')
+    assert item(DAY, 'CoQ10')['comment'] == ''
+    with pytest.raises(ValueError, match='200'):
+        supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {}, 'x' * 201)

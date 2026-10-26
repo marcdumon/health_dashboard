@@ -142,12 +142,15 @@ class HealthSupplement(BaseModel):
     name: str
     dose_unit: str = ''
     step: float | None = None
+    comment: str = ''
 
 
 class HealthSupplementChange(HealthSupplement):
-    """A supplement of the list with its plan (the amount at each moment) from the day on."""
+    """A supplement of the list with its plan (the amount at each moment) from the day on; without a comment, its comment
+    stays."""
 
     plan: dict[str, float] = {}
+    comment: str | None = None
 
 
 class HealthIntake(BaseModel):
@@ -371,7 +374,7 @@ def health_supplement_add(given: HealthSupplement) -> dict:
     """Add a supplement to the list, from its day on; the regime of that day."""
     day = _regime_day(given.day)
     try:
-        health_supplements.add_supplement(day, given.name, given.dose_unit, given.step)
+        health_supplements.add_supplement(day, given.name, given.dose_unit, given.step, given.comment)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     return {'regime': health_supplements.regime(day)}
@@ -382,7 +385,8 @@ def health_supplement_change(supplement_id: int, given: HealthSupplementChange) 
     """Change a supplement of the list, and its plan from its day on; the regime of that day."""
     day = _regime_day(given.day)
     try:
-        health_supplements.change_supplement(supplement_id, day, given.name, given.dose_unit, given.step, given.plan)
+        health_supplements.change_supplement(supplement_id, day, given.name, given.dose_unit, given.step, given.plan,
+                                             given.comment)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     except KeyError as error:

@@ -46,14 +46,14 @@ export type SupplementEntry = { id: number; taken_at: string; amount: number; mo
 // a supplement of the day: its dose unit ('' for a yes or no), one dose, the plan by moment, the planned and the taken
 // totals, and each entry; listed false: removed from the list, shown for the entries it has that day
 export type HealthSupplement = {
-  id: number; name: string; dose_unit: string; step: number | null; listed: boolean; plan: Record<string, number>
-  planned: number; total: number; entries: SupplementEntry[]
+  id: number; name: string; dose_unit: string; step: number | null; comment: string; listed: boolean
+  plan: Record<string, number>; planned: number; total: number; entries: SupplementEntry[]
 }
 // a change of a supplement's planned amount a day (a start is 0 before, a stop 0 after)
 export type SupplementChange = { supplement_id: number; name: string; unit: string; day: string; before: number; after: number }
 // the list on the day of the page, to change it: the amount at each moment; used: it has entries, so its unit stays
 export type RegimeItem = {
-  id: number; name: string; dose_unit: string; step: number | null; plan: Record<string, number>
+  id: number; name: string; dose_unit: string; step: number | null; comment: string; plan: Record<string, number>
   used: boolean
 }
 export type Regime = { moments: string[]; items: RegimeItem[]; changes: SupplementChange[] }
@@ -162,7 +162,8 @@ export const takeMoment = (day: string, moment: string, takenAt: string) =>
   call<HealthView>('/api/health/moments', { day, moment, taken_at: takenAt })
 export const undoMoment = (day: string, moment: string) =>
   send<HealthView>(`/api/health/moments?day=${day}&moment=${encodeURIComponent(moment)}`, 'DELETE')
-export type SupplementFields = { name: string; dose_unit: string; step: number | null }
+// a comment says how to take it: with a meal, with fat
+export type SupplementFields = { name: string; dose_unit: string; step: number | null; comment: string }
 export type SupplementChangeFields = SupplementFields & { plan: Record<string, number> }
 // the regime of any day, also one that has not come yet; a change of it gives the regime of its day
 export const getRegime = (day: string) => call<{ regime: Regime }>(`/api/health/regime?day=${day}`)

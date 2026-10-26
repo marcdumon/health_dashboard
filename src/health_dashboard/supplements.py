@@ -1,7 +1,8 @@
 # the old doses keep the user's own text, with its en dashes and multiplication signs
 # ruff: noqa: RUF001, RUF003
 """The supplements of the Health page, kept as experiments. Each supplement has a dose unit (mg, µg, g, IU or FU; none for
-a yes or no of the day) and the amount of one dose (a pill, a capsule, a scoop). Its plan gives the amount at each moment of the day
+a yes or no of the day), the amount of one dose (a pill, a capsule, a scoop) and a comment on how to take it (with a meal,
+with fat). Its plan gives the amount at each moment of the day (Any time: whenever in the day)
 and changes from a day on, so the days before keep theirs. Each entry of the log keeps its own amount, so a new pack never
 changes the past. The amounts of a day are history values (supp:<id>), and each change of a day's planned total is an
 experiment whose effect the analysis sets before against after (analysis.effect)."""
@@ -12,7 +13,8 @@ from datetime import date, datetime, timedelta
 from health_dashboard import store
 from health_dashboard.ledger import connect
 
-MOMENTS = ('First meal', 'Midday', 'Afternoon', 'Evening meal')
+MOMENTS = ('First meal', 'Midday', 'Afternoon', 'Evening meal', 'Any time')
+COMMENT_MAX = 200
 DOSE_UNITS = ('mg', 'µg', 'g', 'IU', 'FU')
 # in the list on a day: added on or before it, and not removed on or before it
 LISTED = '(added IS NULL OR added <= :day) AND (removed IS NULL OR removed > :day)'
@@ -123,8 +125,8 @@ def day_view(day: date) -> dict:
                               'ORDER BY taken_at, id', (key,)):
             entries.setdefault(row['supplement_id'], []).append(
                 {'id': row['id'], 'taken_at': row['taken_at'], 'amount': row['amount'], 'moment': row['moment']})
-        rows = db.execute(f'SELECT id, name, dose_unit, step, {LISTED} AS listed FROM health_supplement_list ORDER BY position, id',
-                          {'day': key}).fetchall()
+        rows = db.execute(f'SELECT id, name, dose_unit, step, comment, {LISTED} AS listed FROM health_supplement_list '
+                          'ORDER BY position, id', {'day': key}).fetchall()
     items = []
     for row in rows:
         if not row['listed'] and row['id'] not in entries:
@@ -132,7 +134,7 @@ def day_view(day: date) -> dict:
         plan = plans.get(row['id'], {}) if row['listed'] else {}
         mine = entries.get(row['id'], [])
         items.append({'id': row['id'], 'name': row['name'], 'dose_unit': row['dose_unit'], 'step': row['step'],
-                      'listed': bool(row['listed']), 'plan': plan, 'planned': sum(plan.values()),
+                      'comment': row['comment'], 'listed': bool(row['listed']), 'plan': plan, 'planned': sum(plan.values()),
                       'total': sum(e['amount'] for e in mine), 'entries': mine})
     items.sort(key=lambda s: min((MOMENTS.index(m) for m in s['plan']), default=len(MOMENTS)))
     moments = []
@@ -178,13 +180,13 @@ def changes() -> list[dict]:
 
 
 def regime(day: date) -> dict:
-    """The list on a day, to change it: each supplement with its dose unit, one dose, the amount at
-    each moment, and whether it has entries (then its unit stays); and every change of the plan."""
+    """The list on a day, to change it: each supplement with its dose unit, one dose, its comment, the amount at each
+    moment, and whether it has entries (then its unit stays); and every change of the plan."""
     convert()
     with connect() as db:
         plans = _plans(db, day.isoformat())
         used = {row[0] for row in db.execute('SELECT DISTINCT supplement_id FROM health_units')}
-        rows = db.execute(f'SELECT id, name, dose_unit, step FROM health_supplement_list WHERE {LISTED} '
+        rows = db.execute(f'SELECT id, name, dose_unit, step, comment FROM health_supplement_list WHERE {LISTED} '
                           'ORDER BY position, id', {'day': day.isoformat()}).fetchall()
     items = [dict(row) | {'plan': {m: plans.get(row['id'], {}).get(m, 0) for m in MOMENTS}, 'used': row['id'] in used}
              for row in rows]
@@ -206,6 +208,14 @@ def _checked(db, name: str, dose_unit: str, step: float | None, keeps: int | Non
     return name, dose_unit, step if dose_unit else None
 
 
+def _comment(text: str) -> str:
+    """A comment on how to take a supplement, checked."""
+    text = text.strip()
+    if len(text) > COMMENT_MAX:
+        raise ValueError(f'A comment has at most {COMMENT_MAX} characters, not {len(text)}.')
+    return text
+
+
 def _listed(db, supplement_id: int, day: str):
     """The supplement in the list on a day; KeyError when it is not (any more)."""
     row = db.execute(f'SELECT name, dose_unit, step FROM health_supplement_list WHERE id = :id AND {LISTED}',
@@ -215,19 +225,20 @@ def _listed(db, supplement_id: int, day: str):
     return row
 
 
-def add_supplement(day: date, name: str, dose_unit: str, step: float | None) -> int:
+def add_supplement(day: date, name: str, dose_unit: str, step: float | None, comment: str = '') -> int:
     """Add a supplement at the end of the list, in it from that day on, without a plan; its id."""
     convert()
+    comment = _comment(comment)
     with connect(write=True) as db:
         name, dose_unit, step = _checked(db, name, dose_unit, step)
-        return db.execute("INSERT INTO health_supplement_list (name, unit, dose_unit, step, position, added) "
-                          "SELECT ?, '', ?, ?, COALESCE(MAX(position), 0) + 1, ? FROM health_supplement_list",
-                          (name, dose_unit, step, day.isoformat())).lastrowid
+        return db.execute("INSERT INTO health_supplement_list (name, unit, dose_unit, step, comment, position, added) "
+                          "SELECT ?, '', ?, ?, ?, COALESCE(MAX(position), 0) + 1, ? FROM health_supplement_list",
+                          (name, dose_unit, step, comment, day.isoformat())).lastrowid
 
 
 def change_supplement(supplement_id: int, day: date, name: str, dose_unit: str, step: float | None,
-                      plan: dict[str, float]) -> None:
-    """Change a supplement of the list: its name, dose unit and one dose for every day, and its plan
+                      plan: dict[str, float], comment: str | None = None) -> None:
+    """Change a supplement of the list: its name, dose unit, one dose and comment (None: it stays) for every day, and its plan
     (the amount at each moment; a moment not given is 0) from the day on, so the days before keep theirs. The unit of a
     supplement with entries stays: their amounts are in it."""
     key = day.isoformat()
@@ -247,6 +258,8 @@ def change_supplement(supplement_id: int, day: date, name: str, dose_unit: str, 
                              'for another unit.')
         db.execute('UPDATE health_supplement_list SET name = ?, dose_unit = ?, step = ? WHERE id = ?',
                    (name, dose_unit, step, supplement_id))
+        if comment is not None:
+            db.execute('UPDATE health_supplement_list SET comment = ? WHERE id = ?', (_comment(comment), supplement_id))
         current = _plans(db, key).get(supplement_id, {})
         db.executemany(SAVE_PLAN, [(supplement_id, moment, key, float(plan.get(moment, 0))) for moment in MOMENTS
                                    if plan.get(moment, 0) != current.get(moment, 0)])

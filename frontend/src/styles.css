@@ -410,7 +410,7 @@ details.habit-card > summary { cursor: pointer; font-weight: 600; }
 .health-amount input { width: 5em; padding: 4px 2px; border: 0; background: transparent; color: var(--ink); font: inherit;
   font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; }
 /* the regime: one row per supplement with its amount at each moment */
-.regime-table table { min-width: 940px; border-collapse: collapse; }
+.regime-table table { min-width: 1180px; border-collapse: collapse; }
 .regime-table th { font-size: 13px; text-align: left; white-space: nowrap; }
 .regime-table .regime-plan { background: var(--accent-wash); }
 .regime-table .regime-plan-start { border-left: 2px solid var(--accent); padding-left: 8px; }
@@ -420,7 +420,7 @@ details.habit-card > summary { cursor: pointer; font-weight: 600; }
 .regime-table input:not([type="checkbox"]), .regime-table select { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid var(--rule);
   border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; }
 .regime-table input[type="number"] { min-width: 5em; text-align: right; font-variant-numeric: tabular-nums; }
-.regime-table td:first-child input { min-width: 10em; }
+.regime-table td:first-child input, .regime-table td:nth-child(4) input { min-width: 10em; }
 .regime-item tr:first-child td:first-child input { font-weight: 600; }
 .regime-table select { min-width: 6.5em; }
 .regime-table input:disabled, .regime-table select:disabled { opacity: .55; }
@@ -442,6 +442,8 @@ dialog.health-regime .analysis-head { gap: 8px; }
 dialog.health-regime { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 20px 28px; border: 1px solid var(--rule);
   border-radius: 12px; background: var(--surface); color: var(--ink); }
 dialog.health-regime::backdrop { background: rgb(0 0 0 / 0.5); }
+/* the regime has a column for each moment and a comment: it takes more room than the other popups */
+dialog.health-regime.regime-dialog { width: min(1260px, calc(100vw - 32px)); }
 dialog.health-regime .analysis-head { margin-bottom: 8px; }
 /* how to measure with the tape: the figure with its numbered measure lines beside the steps; under each other on a phone */
 dialog.health-guide { width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 20px 28px;

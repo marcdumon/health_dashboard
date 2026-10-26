@@ -98,7 +98,8 @@ function SupplementRow({ supplement: s, onAdd, onAmount, onRemove }: {
                   title={yesNo ? 'Taken now' : `One dose: ${one}`} onClick={onAdd}>+1</button>
         : <span aria-hidden="true" />}
       <span className="health-supplement">
-        <strong>{s.name}</strong> {!s.listed && <span className="muted">removed from the list</span>}
+        <strong>{s.name}</strong> {s.comment && <span className="muted">{s.comment}</span>}
+        {!s.listed && <span className="muted">removed from the list</span>}
       </span>
       <span className={`health-count${full ? ' done' : ''}`}>
         {yesNo ? (s.total ? 'taken' : 'not taken')
@@ -146,14 +147,14 @@ const typed = (text: string): number | null | undefined => {
   const n = Number(text)
   return Number.isFinite(n) && n >= 0 ? n : undefined
 }
-const EMPTY = { name: '', unit: 'mg', step: '' }
+const EMPTY = { name: '', unit: 'mg', step: '', comment: '' }
 // the columns of the plan stand apart from those of the supplement: a line before the first moment, a light background
 const plan = (index: number) => (index === 0 ? 'regime-plan regime-plan-start' : 'regime-plan')
 
 // a supplement of the regime as typed, before Save
-type Draft = { name: string; unit: string; step: string; plan: Record<string, string> }
+type Draft = { name: string; unit: string; step: string; comment: string; plan: Record<string, string> }
 const draftOf = (s: RegimeItem, moments: string[]): Draft => ({
-  name: s.name, unit: s.dose_unit, step: s.step === null ? '' : amount(s.step),
+  name: s.name, unit: s.dose_unit, step: s.step === null ? '' : amount(s.step), comment: s.comment,
   plan: Object.fromEntries(moments.map(m => [m, s.plan[m] ? amount(s.plan[m]) : ''])),
 })
 // the fields to send of a draft, or what is wrong with it
@@ -163,7 +164,7 @@ const fieldsOf = (d: Draft, moments: string[]): SupplementChangeFields | string 
   if (d.unit && !one) return 'give the amount of one dose, more than 0'
   const plan = Object.fromEntries(moments.map(m => [m, typed(d.plan[m])]))
   if (Object.values(plan).some(v => v === undefined)) return 'an amount is a number of 0 or more'
-  return { name: d.name, dose_unit: d.unit, step: one ?? null,
+  return { name: d.name, dose_unit: d.unit, step: one ?? null, comment: d.comment.trim(),
            plan: Object.fromEntries(moments.map(m => [m, plan[m] ?? 0])) }
 }
 // whether a draft differs from the saved supplement
@@ -171,11 +172,11 @@ const changed = (d: Draft, s: RegimeItem, moments: string[]) => {
   const fields = fieldsOf(d, moments)
   if (typeof fields === 'string') return true
   return fields.name.trim() !== s.name || fields.dose_unit !== s.dose_unit || fields.step !== s.step
-    || moments.some(m => fields.plan[m] !== (s.plan[m] ?? 0))
+    || fields.comment !== s.comment || moments.some(m => fields.plan[m] !== (s.plan[m] ?? 0))
 }
 
 // the regime of a day, the day of the page at first: any day can be chosen, an earlier one to see the plan it had, a
-// later one to plan a change. Per supplement its unit, one dose and the amount at each moment. The fields are drafts until
+// later one to plan a change. Per supplement its unit, one dose, comment and the amount at each moment. The fields are drafts until
 // Save, which saves every changed supplement from the chosen day on; Close or another day leaves the drafts unsaved. Remove
 // and Add act at once, from the chosen day on. Below: every change of the plan, each a link to its day
 function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: string; onClose: () => void }) {
@@ -184,7 +185,7 @@ function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: st
   const [day, setDay] = useState(pageDay)
   const found = useQuery({ queryKey: ['health-regime', day], queryFn: () => getRegime(day) })
   return createPortal(
-    <dialog ref={dialog} className="health-regime accent-health" onClose={onClose} aria-labelledby="regime-title" {...closeOutside}>
+    <dialog ref={dialog} className="health-regime regime-dialog accent-health" onClose={onClose} aria-labelledby="regime-title" {...closeOutside}>
       <div className="analysis-head">
         <h2 id="regime-title">Regime from{' '}
           <input type="date" className="regime-day" value={day} aria-label="Day of the regime"
@@ -240,7 +241,8 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
   const remove = useMutation({ mutationFn: (id: number) => removeSupplement(id, day),
                                onSuccess: ({ regime: next }) => { show(next); keep(next) }, scope: SCOPE })
   const add = useMutation({
-    mutationFn: () => addSupplement(day, { name: draft.name, dose_unit: draft.unit, step: draft.unit ? typed(draft.step) ?? null : null }),
+    mutationFn: () => addSupplement(day, { name: draft.name, dose_unit: draft.unit, step: draft.unit ? typed(draft.step) ?? null : null,
+                                           comment: draft.comment.trim() }),
     onSuccess: ({ regime: next }) => { show(next); keep(next); setDraft(EMPTY) }, scope: SCOPE,
   })
   const error = save.error ?? remove.error ?? add.error
@@ -250,13 +252,13 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
         <table>
           <thead>
             <tr className="regime-groups">
-              <th colSpan={3} scope="colgroup">Supplement</th>
+              <th colSpan={4} scope="colgroup">Supplement</th>
               <th colSpan={moments.length + 1} scope="colgroup" className="regime-plan regime-plan-start">Plan, the amount at
                 each moment</th>
               <td />
             </tr>
             <tr>
-              <th scope="col">Name</th><th scope="col">Unit</th><th scope="col">One dose</th>
+              <th scope="col">Name</th><th scope="col">Unit</th><th scope="col">One dose</th><th scope="col">Comment</th>
               {moments.map((m, i) => <th key={m} scope="col" className={plan(i)}>{m}</th>)}
               <th scope="col" className="regime-plan">A day</th><th scope="col"><span className="sr-only">Remove</span></th>
             </tr>
@@ -272,6 +274,8 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
               <td><UnitSelect value={draft.unit} label="Unit of the new supplement" onChange={unit => setDraft({ ...draft, unit })} /></td>
               <td><input type="number" min={0} step="any" value={draft.step} disabled={!draft.unit} placeholder={draft.unit ? 'e.g. 25' : ''}
                          aria-label="One dose of the new supplement" onChange={e => setDraft({ ...draft, step: e.target.value })} /></td>
+              <td><input value={draft.comment} placeholder="e.g. with a meal" maxLength={200} aria-label="Comment on the new supplement"
+                         onChange={e => setDraft({ ...draft, comment: e.target.value })} /></td>
               <td colSpan={moments.length + 2}>
                 <button type="button" onClick={() => add.mutate()}
                         disabled={!draft.name.trim() || (!!draft.unit && !typed(draft.step)) || add.isPending}>Add</button>
@@ -334,6 +338,8 @@ function RegimeRow({ item: s, draft: d, moments, edited, onDraft, onRemove }: {
         <td><UnitSelect value={d.unit} label={`Unit of ${s.name}`} disabled={s.used} onChange={unit => onDraft({ ...d, unit })} /></td>
         <td><input type="number" min={0} step="any" value={d.unit ? d.step : ''} disabled={!d.unit} aria-label={`One dose of ${s.name}`}
                    onChange={e => onDraft({ ...d, step: e.target.value })} /></td>
+        <td><input value={d.comment} placeholder="e.g. with fat" maxLength={200} aria-label={`Comment on ${s.name}`}
+                   onChange={e => onDraft({ ...d, comment: e.target.value })} /></td>
         {moments.map((m, i) => (
           <td key={m} className={plan(i)}>
             {d.unit
