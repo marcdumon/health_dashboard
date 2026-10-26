@@ -8,7 +8,7 @@ export class ApiError extends Error {
 
 // the browser's own words for an unreachable server ('Failed to fetch') tell the user nothing
 export const APP_NOT_RUNNING = 'The health dashboard is not running, so this could not be done. Start it again: '
-  + 'type run_health_dashboard in a terminal, then press the button again.'
+  + 'type run_md_health_dashboard in a terminal, then press the button again.'
 
 const reach = (path: string, init?: RequestInit) => fetch(path, init).catch(() => { throw new ApiError(APP_NOT_RUNNING, false, '') })
 

@@ -15,7 +15,7 @@ export default function App() {
       {version.data?.restart_needed && (
         <div className="message outdated" role="alert">
           <p>The app was updated while it was running, and the running app still has the old code. Restart it: press Ctrl+C in
-            the terminal where it runs, then type <code>run_health_dashboard</code>.</p>
+            the terminal where it runs, then type <code>run_md_health_dashboard</code>.</p>
         </div>
       )}
       {outdated && (
