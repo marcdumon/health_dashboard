@@ -783,3 +783,5 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .health-day-food { margin: 0 0 8px; font-size: 13px; }
 .polar-row-actions { white-space: nowrap; }
 .polar-row-actions button + button { margin-left: 6px; }
+/* the copy of the regime to another day, above the table */
+.regime-save.regime-copy { margin: 0 0 10px; }

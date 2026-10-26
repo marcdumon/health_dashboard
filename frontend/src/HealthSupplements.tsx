@@ -262,6 +262,17 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
   const error = save.error ?? remove.error ?? add.error ?? copy.error
   return (
     <>
+      <div className="regime-save regime-copy">
+        <label>Copy this regime to{' '}
+          <input type="date" className="regime-day" value={target} aria-label="Day to copy this regime to"
+                 onChange={e => setTarget(e.target.value)} />
+        </label>
+        <button type="button" disabled={!target || target === day || edited.length > 0 || copy.isPending}
+                onClick={() => copy.mutate()}>Copy</button>
+        <span className="muted">
+          {edited.length ? 'Save the changes first.' : `From that day on, the plan is the plan of ${shortDay(day)}.`}
+        </span>
+      </div>
       <div className="health-table regime-table">
         <table>
           <thead>
@@ -305,17 +316,6 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
           {wrong.length ? wrong.join('; ')
             : edited.length ? `${edited.length} ${edited.length === 1 ? 'supplement' : 'supplements'} changed, not saved yet`
               : 'No changes'}
-        </span>
-      </div>
-      <div className="regime-save regime-copy">
-        <label>Copy this regime to{' '}
-          <input type="date" className="regime-day" value={target} aria-label="Day to copy this regime to"
-                 onChange={e => setTarget(e.target.value)} />
-        </label>
-        <button type="button" disabled={!target || target === day || edited.length > 0 || copy.isPending}
-                onClick={() => copy.mutate()}>Copy</button>
-        <span className="muted">
-          {edited.length ? 'Save the changes first.' : `From that day on, the plan is the plan of ${shortDay(day)}.`}
         </span>
       </div>
       {error && <p className="cap-error">{error.message}</p>}
