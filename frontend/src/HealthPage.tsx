@@ -387,7 +387,7 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
 
 const RANGES = [30, 90, 365]
 // the home blood pressure line of the systolic and diastolic charts
-const HOME_BP_NOTE = 'home (ESH): the mean of the readings of the 7 days up to each day; at least 4'
+const HOME_BP_NOTE = 'home (ESH): 7-day mean'
 const TABS: [string, string][] = [['heart', 'Heart and vessels'], ['h10', 'Polar H10'], ['hrv', 'HRV'], ['recovery', 'Recovery'],
                                   ['stairs', 'Stairs'], ['sleep', 'Sleep'], ['fitbit', 'Fitbit'], ['body', 'Body composition'], ['parts', 'Body parts'],
                                   ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['daily', 'Angina and ketones']]
@@ -422,7 +422,7 @@ function Chart({ rows, title, unit, decimals, lines, note = '', group = '', conn
 
 const one = (key: string, label: string): Line[] => [{ key, label, kind: 's1' }]
 // a value with its 7-day mean (the server's <key>_7d), the mean with one decimal more
-const MEAN_NOTE = '7-day mean: the mean of the readings of the 7 days up to each day; at least 3'
+const MEAN_NOTE = '7-day mean'
 const withMean = (key: string, label: string, decimals: number): Line[] => [
   { key, label, kind: 's1' },
   { key: `${key}_7d`, label: '7-day mean', kind: 's2', decimals: decimals + 1, name: `${label}, 7-day mean` }]
