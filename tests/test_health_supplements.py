@@ -275,3 +275,26 @@ def test_a_comment_says_how_to_take_a_supplement_and_a_change_without_one_keeps_
     assert item(DAY, 'CoQ10')['comment'] == ''
     with pytest.raises(ValueError, match='200'):
         supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {}, 'x' * 201)
+
+
+def entries(day: date) -> list[tuple]:
+    """The entries of a day: supplement, time, amount and moment, in time order."""
+    return [(s['name'], e['taken_at'], e['amount'], e['moment']) for s in supplements.day_view(day)['items'] for e in s['entries']]
+
+
+def test_a_copy_replaces_the_entries_of_a_day_with_those_of_another_day() -> None:
+    _, calcium, valerian = planned_day()
+    later = DAY + timedelta(days=1)
+    supplements.take_moment(DAY, 'First meal', '09:12')
+    supplements.add_intake(DAY, valerian, '22:30')
+    supplements.add_intake(later, calcium, '07:00', 50)
+    source = entries(DAY)
+    assert supplements.copy_day(DAY, later) == 3
+    assert entries(later) == source, 'the same supplements, times, amounts and moments; the 50 mg of calcium went'
+    assert entries(DAY) == source, 'a copy: the first day keeps its entries'
+    supplements.remove_supplement(valerian, later)
+    assert supplements.copy_day(DAY, later) == 2, 'not a supplement that is not in the list on that day'
+    with pytest.raises(ValueError, match='two different days'):
+        supplements.copy_day(DAY, DAY)
+    with pytest.raises(ValueError, match='No supplements'):
+        supplements.copy_day(DAY - timedelta(days=1), later)

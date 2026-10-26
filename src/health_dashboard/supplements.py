@@ -320,6 +320,23 @@ def take_moment(day: date, moment: str, taken_at: str) -> int:
     return len(rows)
 
 
+def copy_day(source: date, target: date) -> int:
+    """Replace the entries of a day with copies of those of another day: each supplement, time, amount and moment, but not
+    of a supplement that is not in the list on that day; how many entries were copied."""
+    if source == target:
+        raise ValueError('Choose two different days: the supplements of the first day are copied to the second.')
+    with connect(write=True) as db:
+        rows = db.execute('SELECT supplement_id, taken_at, amount, moment FROM health_units WHERE day = ? ORDER BY taken_at, id',
+                          (source.isoformat(),)).fetchall()
+        if not rows:
+            raise ValueError(f'No supplements were logged on {source.day} {source:%B %Y}. Choose a day with entries to copy.')
+        listed = {row[0] for row in db.execute(f'SELECT id FROM health_supplement_list WHERE {LISTED}', {'day': target.isoformat()})}
+        copies = [(target.isoformat(), *row) for row in rows if row['supplement_id'] in listed]
+        db.execute('DELETE FROM health_units WHERE day = ?', (target.isoformat(),))
+        db.executemany('INSERT INTO health_units (day, supplement_id, taken_at, amount, moment) VALUES (?, ?, ?, ?, ?)', copies)
+    return len(copies)
+
+
 def undo_moment(day: date, moment: str) -> int:
     """Remove the entries of a moment of a day at once; how many."""
     with connect(write=True) as db:

@@ -162,6 +162,15 @@ class HealthIntake(BaseModel):
     amount: float | None = None
 
 
+class HealthCopy(BaseModel):
+    """The supplements of one day copied to another, whose entries they replace; the day of the page gives the view of the
+    answer (default: the day copied to)."""
+
+    from_day: str
+    to_day: str
+    page_day: str | None = None
+
+
 class HealthAmount(BaseModel):
     """A new amount of an entry."""
 
@@ -353,6 +362,17 @@ def health_moment_take(given: HealthMoment) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     return _health_view(day)
+
+
+@app.post('/api/health/supplements/copy')
+def health_supplements_copy(given: HealthCopy) -> dict:
+    """Replace the supplements of a day with those of another day; the view of the page's day."""
+    source, target = _health_day(given.from_day), _health_day(given.to_day)
+    try:
+        health_supplements.copy_day(source, target)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return _health_view(_health_day(given.page_day) if given.page_day else target)
 
 
 @app.delete('/api/health/moments')

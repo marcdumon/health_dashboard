@@ -167,6 +167,9 @@ export type SupplementFields = { name: string; dose_unit: string; step: number |
 export type SupplementChangeFields = SupplementFields & { plan: Record<string, number> }
 // the regime of any day, also one that has not come yet; a change of it gives the regime of its day
 export const getRegime = (day: string) => call<{ regime: Regime }>(`/api/health/regime?day=${day}`)
+// the supplements of one day copied to another, whose entries they replace; the answer is the view of the page's day
+export const copySupplements = (fromDay: string, toDay: string, pageDay: string) =>
+  call<HealthView>('/api/health/supplements/copy', { from_day: fromDay, to_day: toDay, page_day: pageDay })
 export const addSupplement = (day: string, fields: SupplementFields) =>
   call<{ regime: Regime }>('/api/health/supplements', { day, ...fields })
 export const changeSupplement = (id: number, day: string, fields: SupplementChangeFields) =>

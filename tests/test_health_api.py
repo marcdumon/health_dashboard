@@ -264,3 +264,16 @@ def test_the_tape_measurements_are_set_and_removed(client) -> None:
     assert client.get('/api/health').json()['tape'] == {'values': {}, 'last': {'day': '2026-10-01', 'values': {'waist': 91.8}}}
     view = client.put('/api/health/tape', json={'day': '2026-10-01', 'site': 'waist', 'cm': None}).json()
     assert view['tape']['values'] == {}
+
+
+def test_the_supplements_of_a_day_are_copied_to_another_day(client) -> None:
+    view = client.post('/api/health/supplements', json={'day': '2026-10-07', 'name': 'Calcium', 'dose_unit': 'mg', 'step': 100}).json()
+    calcium = regime(view, 'Calcium')
+    client.post('/api/health/intakes', json={'day': '2026-10-07', 'supplement_id': calcium['id'], 'taken_at': '08:10'})
+    view = client.post('/api/health/supplements/copy', json={'from_day': '2026-10-07', 'to_day': '2026-10-08'}).json()
+    assert view['day'] == '2026-10-08' and supplement(view, 'Calcium')['total'] == 100
+    view = client.post('/api/health/supplements/copy',
+                       json={'from_day': '2026-10-08', 'to_day': '2026-10-07', 'page_day': '2026-10-08'}).json()
+    assert view['day'] == '2026-10-08', 'the answer is the view of the page'
+    answer = client.post('/api/health/supplements/copy', json={'from_day': '2026-10-08', 'to_day': '2026-10-09'})
+    assert answer.status_code == 400, 'not a day to come'
