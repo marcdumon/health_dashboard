@@ -13,6 +13,7 @@ import { DaySessions, PolarCard, SessionsDialog } from './HealthPolar'
 import { TEST_STEPS } from './HealthPolarTests'
 import { ActivityWeeks, EnergyWeeks, PolarWeeks, ZoneWeeks } from './HealthPolarWeeks'
 import { FitbitCard } from './HealthFitbit'
+import { Food, foodLine, foodSummary } from './HealthFood'
 import { HealthOverview } from './HealthOverview'
 import { SleepCard, SleepPattern, SleepTimesEnlarge } from './HealthSleep'
 import { SupplementHistory } from './HealthSupplementHistory'
@@ -20,7 +21,8 @@ import { supplementSummary, Supplements } from './HealthSupplements'
 import { TapeGuideButton } from './HealthTapeGuide'
 import { clock, TimeField } from './HealthTime'
 import {
-  COMPOSITION, FITBIT, FITBIT_GROUPS, H10, HRV, HRV_BETTER, inText, RECOVERY, SLEEP, STAIRS, TAPE, TAPE_PAIRS, VESSELS, type Value,
+  COMPOSITION, FITBIT, FITBIT_GROUPS, FOOD, H10, HRV, HRV_BETTER, inText, RECOVERY, SLEEP, STAIRS, TAPE, TAPE_PAIRS, VESSELS,
+  type Value,
 } from './healthValues'
 
 // the user's health: each day the supplements taken (each amount at its clock time), one angina score 0 to 5 with a
@@ -28,6 +30,8 @@ import {
 
 const longDay = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+const shortDay = (day: string) =>
+  new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const shift = (day: string, days: number) => {
   const d = new Date(`${day}T12:00:00`)
   d.setDate(d.getDate() + days)
@@ -82,6 +86,8 @@ export default function HealthPage() {
 
 function TodayCard({ data, onChange, onDay }: { data: HealthView; onChange: (v: HealthView) => void; onDay: (day: string) => void }) {
   const isToday = data.day === data.today
+  const before = shift(data.day, -1)
+  const foodLabels: [string, string] = isToday ? ['Yesterday', 'Today'] : [shortDay(before), shortDay(data.day)]
   return (
     <article className="habit-card health-today">
       <div className="health-day-head">
@@ -98,6 +104,9 @@ function TodayCard({ data, onChange, onDay }: { data: HealthView; onChange: (v: 
       </div>
       <Fold id="supplements" title="Supplements" summary={supplementSummary(data.supplements)}>
         <Supplements data={data} onChange={onChange} />
+      </Fold>
+      <Fold id="food" title="Food" summary={foodSummary(data, foodLabels)}>
+        <Food key={`food-${data.day}`} data={data} before={before} labels={foodLabels} onChange={onChange} />
       </Fold>
       <Fold id="ketones" title="Ketones" summary={ketoneSummary(data)}>
         <Ketones data={data} onChange={onChange} />
@@ -388,7 +397,8 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
 const RANGES = [30, 90, 365]
 const TABS: [string, string][] = [['heart', 'Heart and vessels'], ['h10', 'Polar H10'], ['hrv', 'HRV'], ['recovery', 'Recovery'],
                                   ['stairs', 'Stairs'], ['sleep', 'Sleep'], ['fitbit', 'Fitbit'], ['body', 'Body composition'], ['parts', 'Body parts'],
-                                  ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['daily', 'Angina and ketones']]
+                                  ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['food', 'Food'],
+                                  ['daily', 'Angina and ketones']]
 const TAB_KEY = 'health-history-tab'
 const ACTIVITY_KEY = 'health-h10-activity'
 
@@ -460,6 +470,36 @@ const SLEEP_NOTES: Record<string, string> = {
   'sleep:deep_pct': 'of the time in a stage, a day: its sleeps added, estimated by Sleep as Android',
   'sleep:cycles': 'a day: its sleeps added, found by Sleep as Android',
 }
+// what a value of the Food tab is, where its name does not say it
+const FOOD_NOTES: Record<string, string> = {
+  'food:amount': '0 = usual', 'food:protein': '0 = usual', 'food:carbs': '0 = usual', 'food:fat': '0 = usual',
+  'food:fasted': 'before the first food of the day', 'food:refeed_day': 'the 7 days after a fast',
+}
+// the food values drawn as bars from 0: the marks (yes or no) and the day numbers
+const FOOD_BARS = new Set(['food:alcohol', 'food:salt', 'food:fast_day', 'food:refeed_day'])
+// the values of a fast day: their charts only in a period with a fast day
+const FAST_KEYS = new Set(['food:kcal', 'food:protein_g', 'food:carbs_g', 'food:fat_g'])
+
+function FoodBars({ rows, value: key, label, onPick }: {
+  rows: HealthDayRow[]; value: string; label: string; onPick: (day: string) => void
+}) {
+  const value = (r: HealthDayRow) => {
+    const found = r[key]
+    return typeof found === 'number' ? found : null
+  }
+  const mark = key === 'food:alcohol' || key === 'food:salt'
+  const max = mark ? 1 : Math.max(1, ...rows.map(r => value(r) ?? 0))
+  const text = (v: number) => (mark ? (v ? 'yes' : 'no') : key === 'food:fast_day' && v === 0 ? 'no fast' : `${inText(label)} ${v}`)
+  return (
+    <figure><figcaption>{label} {FOOD_NOTES[key] && <span className="muted">{FOOD_NOTES[key]}</span>}
+      <EnlargeButton spec={{ title: label, unit: '', decimals: 0, lines: one(key, label) }} /></figcaption>
+      <BarChart rows={rows} label={label} value={value} max={max} ticks={[0, max]} onPick={onPick}
+                tickLabel={mark ? t => (t ? 'yes' : 'no') : undefined}
+                format={r => { const v = value(r); return v === null ? 'not noted' : text(v) }} />
+    </figure>
+  )
+}
+
 function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ketostix: KetostixLevel[]; polar: PolarStatus }) {
   const step = (level: number | null) => (level === null ? null : ketostix.findIndex(k => k.level === level))
   const [days, setDays] = useState(30)
@@ -502,6 +542,9 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
   const slept = rows.some(r => typeof r['sleep:total'] === 'number')
   const hasValue = (key: string) => rows.some(r => typeof r[key] === 'number')
   const worn = FITBIT.some(([key]) => hasValue(key))
+  // a noted day has its fast day number (0 on a day that is not a fast day)
+  const fed = hasValue('food:fast_day')
+  const fasting = rows.some(r => Number(r['food:fast_day']) > 0)
   // the day clicked in a chart (or a row of the table): its row opens with each of its measurements
   const [picked, setPicked] = useState<string | null>(null)
   // the popup of all Polar H10 sessions, the same as on the Polar H10 card
@@ -744,6 +787,17 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
       {rows.length > 0 && tab === 'supplements' && (
         <SupplementHistory days={days} fetched={fetched} />
       )}
+      {rows.length > 0 && tab === 'food' && !fed && (
+        <p className="muted">No food noted in these days. Note it in the Food part of the Today card.</p>
+      )}
+      {rows.length > 0 && tab === 'food' && fed && (
+        <div className="health-charts">
+          {FOOD.filter(([key]) => !FAST_KEYS.has(key) || fasting).map(([key, label, unit, decimals]) => (FOOD_BARS.has(key)
+            ? <FoodBars key={key} rows={rows} value={key} label={label} onPick={setPicked} />
+            : <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals} lines={one(key, label)}
+                     note={FOOD_NOTES[key]} />))}
+        </div>
+      )}
       {rows.length > 0 && tab === 'daily' && (
         <div className="health-charts">
           <figure><figcaption>Angina pectoris <span className="muted">0 to 5</span>
@@ -861,7 +915,8 @@ function HistoryTable({ rows, picked, onPick }: { rows: HealthDayRow[]; picked: 
               </tr>,
               r.day === picked && (
                 <tr key={`${r.day}-measures`} className="picked health-day-detail">
-                  <td colSpan={9}><DayMeasurements day={r.day} /><DaySessions day={r.day} /></td>
+                  <td colSpan={9}>{foodLine(r) && <p className="health-day-food">{foodLine(r)}</p>}
+                    <DayMeasurements day={r.day} /><DaySessions day={r.day} /></td>
                 </tr>
               ),
             ])}

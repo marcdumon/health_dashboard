@@ -2,16 +2,18 @@
 log), the angina score, the highest Ketostix reading and how many, the day's average blood pressure and its pulse, the
 day's average of every value of the scale, the tape measurements, the values of the HRV tests (with their band keys),
 the HR recovery tests and the stairs tests, the sleep of the day (Sleep as Android: the sleeps that end on it, added
-up), the Fitbit values of the day (fitbit), and the values derived from the Withings readings (trends: the trend of each
-body composition value and the home blood pressure), and the training load (polar_load: totals of a period, not values
-of a session); a value of a body part is named kind:part ('muscle_mass:left_arm', 'tape:waist'). The values of the Polar
-H10 sessions have no value of a day (a day mixes activities): each session is a point (chart_points), as is each
-recording. A day starts at store.DAY_START_HOUR, for the Withings readings and the sessions too."""
+up), the food of the day (food: the scales, the marks, the times and the fast days), the Fitbit values of the day
+(fitbit), and the values derived from the Withings readings (trends: the trend of each body composition value and the
+home blood pressure), and the training load (polar_load: totals of a period, not values of a session); a value of a body
+part is named kind:part ('muscle_mass:left_arm', 'tape:waist'). The values of the Polar H10 sessions have no value of a
+day (a day mixes activities): each session is a point (chart_points), as is each recording. A day starts at
+store.DAY_START_HOUR, for the Withings readings and the sessions too."""
 
 from datetime import date, datetime, timedelta
 
 from health_dashboard import (
     fitbit,
+    food,
     ledger,
     polar_hrv,
     polar_load,
@@ -80,7 +82,7 @@ def days(count: int, today: date) -> list[dict]:
     for day, values in polar_hrv.day_values(first.isoformat(), today.isoformat()).items():
         if day in rows:
             rows[day] |= values
-    for source in (polar_recovery, polar_stairs, sleep, fitbit, trends, polar_load, supplements):
+    for source in (polar_recovery, polar_stairs, sleep, food, fitbit, trends, polar_load, supplements):
         for day, values in source.day_values(first.isoformat(), today.isoformat()).items():
             if day in rows:
                 rows[day] |= values

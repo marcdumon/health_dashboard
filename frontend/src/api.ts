@@ -70,6 +70,14 @@ export type WithingsStatus = {
 // a Ketostix reading (level in mmol/L), and the six colours of the strip the server takes
 export type KetoneReading = { id: number; taken_at: string; level: number }
 export type KetostixLevel = { level: number; label: string; mg_dl: number }
+// the food noted for a day (none: no note): the first and the last food, the scales from -3 to +3 against the usual day
+// (none: not chosen, which counts as 0 on a noted day), the marks, and the kcal and grams of a fast day
+export type FoodDay = {
+  first_food: string | null; last_food: string | null
+  amount: number | null; protein: number | null; carbs: number | null; fat: number | null
+  alcohol: boolean; salt: boolean; fast: boolean
+  kcal: number | null; protein_g: number | null; carbs_g: number | null; fat_g: number | null
+}
 export type HealthView = {
   day: string; today: string; now: string
   supplements: { moments: SupplementMoment[]; items: HealthSupplement[] }
@@ -77,6 +85,8 @@ export type HealthView = {
   ketones: KetoneReading[]; ketostix: KetostixLevel[]; latest: HealthLatest; withings: WithingsStatus; polar: PolarStatus
   sleep: SleepStatus
   fitbit: FitbitStatus
+  // the food of the day and of the day before: both are noted in the morning
+  food: { day: FoodDay | null; day_before: FoodDay | null }
   // the tape measurements of the day by site, and the last day with any before it
   tape: { values: Record<string, number>; last: { day: string; values: Record<string, number> } | null }
 }
@@ -164,6 +174,11 @@ export const removeSupplement = (id: number, day: string) =>
   send<{ regime: Regime }>(`/api/health/supplements/${id}?day=${day}`, 'DELETE')
 export const setAngina = (day: string, score: number | null, note: string, notMeasured = false) =>
   send<HealthView>('/api/health/angina', 'PUT', { day, score, note, not_measured: notMeasured })
+// some fields of the food of a day; the answer is the view of the page's day
+export const setFood = (pageDay: string, day: string, changes: Partial<FoodDay>) =>
+  send<HealthView>('/api/health/food', 'PUT', { day, page_day: pageDay, ...changes })
+export const clearFood = (pageDay: string, day: string) =>
+  send<HealthView>(`/api/health/food?day=${day}&page_day=${pageDay}`, 'DELETE')
 export const setTape = (day: string, site: string, cm: number | null) =>
   send<HealthView>('/api/health/tape', 'PUT', { day, site, cm })
 export const addKetoneReading = (day: string, level: number, takenAt: string) =>

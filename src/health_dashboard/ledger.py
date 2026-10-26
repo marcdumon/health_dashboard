@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS health_angina (day TEXT PRIMARY KEY, score INTEGER, n
 CREATE TABLE IF NOT EXISTS health_ketones (id INTEGER PRIMARY KEY, day TEXT NOT NULL, taken_at TEXT NOT NULL, level REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS health_ketones_by_day ON health_ketones (day, taken_at);
 CREATE TABLE IF NOT EXISTS health_tape (day TEXT NOT NULL, site TEXT NOT NULL, cm REAL NOT NULL, PRIMARY KEY (day, site));
+CREATE TABLE IF NOT EXISTS health_food (
+    day TEXT PRIMARY KEY, first_food TEXT, last_food TEXT, amount INTEGER, protein INTEGER, carbs INTEGER, fat INTEGER,
+    alcohol INTEGER NOT NULL DEFAULT 0, salt INTEGER NOT NULL DEFAULT 0, fast INTEGER NOT NULL DEFAULT 0, kcal REAL,
+    protein_g REAL, carbs_g REAL, fat_g REAL
+);
 CREATE TABLE IF NOT EXISTS withings_values (
     grpid INTEGER NOT NULL, type INTEGER NOT NULL, position INTEGER NOT NULL, value REAL NOT NULL, measured_at TEXT NOT NULL,
     PRIMARY KEY (grpid, type, position)

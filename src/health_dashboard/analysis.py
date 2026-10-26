@@ -10,9 +10,22 @@ from bisect import bisect_left, bisect_right
 from datetime import date, datetime, timedelta
 from itertools import pairwise
 
-from health_dashboard import fitbit, history, ledger, polar_hrv, polar_load, polar_store, sleep, store, supplements, trends, withings
+from health_dashboard import (
+    fitbit,
+    food,
+    history,
+    ledger,
+    polar_hrv,
+    polar_load,
+    polar_store,
+    sleep,
+    store,
+    supplements,
+    trends,
+    withings,
+)
 
-# the user's own scores: never a wrong measurement, so never an outlier; nor is an amount of a supplement taken
+# the user's own scores: never a wrong measurement, so never an outlier; nor is an amount of a supplement taken or a food value
 DAILY = ('angina', 'ketones')
 # values calculated from others (means, trends, loads): never a wrong measurement either
 DERIVED = (*trends.KEYS, *polar_load.KEYS, *(key for key, _ in polar_hrv.MEAN_KEYS.values()), 'h10:ln_rmssd_cv7')
@@ -32,24 +45,24 @@ MAX_LAG = 30
 def known(key: str) -> bool:
     """Whether a value of the history has this name: a Withings value (of a body part too), the angina score, the highest
     Ketostix reading, the amount of a supplement taken, a site of the tape measure, a value of the Polar H10 sessions, a
-    sleep value of a day, a Fitbit value of a day or a derived value."""
+    sleep value of a day, a food value of a day, a Fitbit value of a day or a derived value."""
     name, _, part = key.partition(':')
     if name == 'tape':
         return part in dict(store.TAPE_SITES)
     if name == 'supp':
         return any(k['key'] == key for k in supplements.value_keys())
     names = set(withings.TYPES.values()) | {'heart_rate', 'muscle_ratio'}
-    return (key in DAILY or key in DERIVED or key in polar_store.KEYS or key in sleep.KEYS or key in fitbit.KEYS
+    return (key in DAILY or key in DERIVED or key in polar_store.KEYS or key in sleep.KEYS or key in food.KEYS or key in fitbit.KEYS
             or (name in names and (not part or part in withings.PARTS.values())))
 
 
 def _first_day(today: date) -> date:
     """The first day with data of any kind: the first measurement, entry of a supplement, angina score, Ketostix reading or
-    tape measurement, Polar H10 session, sleep or Fitbit day."""
+    tape measurement, food note, Polar H10 session, sleep or Fitbit day."""
     with ledger.connect() as db:
         measured = db.execute('SELECT MIN(measured_at) FROM withings_values').fetchone()[0]
         days = [db.execute(f'SELECT MIN(day) FROM {table}').fetchone()[0]
-                for table in ('health_units', 'health_angina', 'health_ketones', 'health_tape', 'polar_sessions',
+                for table in ('health_units', 'health_angina', 'health_ketones', 'health_tape', 'health_food', 'polar_sessions',
                               'sleep_records', 'fitbit_days')]
     found = [date.fromisoformat(d) for d in days if d] + ([store.health_day(datetime.fromisoformat(measured))] if measured else [])
     return min([*found, today])
@@ -199,8 +212,8 @@ def analyse(key: str, days: int | None, window: int, today: date, activity: int 
     return result | {
         'points': _rolling(day_list, values, half), 'stats': _stats(day_list, values), 'histogram': _histogram(values),
         # the user's own scores, the supplements, the sleep and the Fitbit values are never a measurement the user can remove
-        'outliers': [] if key in DAILY or key in DERIVED or key in sleep.KEYS or key in fitbit.KEYS or key.startswith('supp:')
-        else _outliers(day_list, values, half),
+        'outliers': [] if key in DAILY or key in DERIVED or key in sleep.KEYS or key in food.KEYS or key in fitbit.KEYS
+        or key.startswith('supp:') else _outliers(day_list, values, half),
         'steps': None if per_session else _steps(day_list, values),
         'years': _years(day_list, values)}
 

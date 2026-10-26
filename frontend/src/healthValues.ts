@@ -60,6 +60,16 @@ export const SLEEP: Value[] = [
   ['sleep:awake', 'Time awake', 'min', 0], ['sleep:deep', 'Deep sleep', 'min', 0], ['sleep:deep_pct', 'Deep sleep share', '%', 1],
   ['sleep:light', 'Light sleep', 'min', 0], ['sleep:rem', 'REM sleep', 'min', 0], ['sleep:cycles', 'Sleep cycles', '', 0],
 ]
+// the food of each day, noted without counting, in its own tab of the history: the scales against the usual day (0),
+// the marks (1 = yes), the times from the first and the last food, and the fast days with their kcal and grams
+export const FOOD: Value[] = [
+  ['food:amount', 'Amount of food', '', 0], ['food:protein', 'Protein', '', 0], ['food:carbs', 'Carbs', '', 0],
+  ['food:fat', 'Fat', '', 0], ['food:alcohol', 'Alcohol', '', 0], ['food:salt', 'Much salt', '', 0],
+  ['food:window', 'Eating window', 'h', 1], ['food:fasted', 'Hours without food', 'h', 1],
+  ['food:to_sleep', 'Last food to sleep', 'h', 1], ['food:fast_day', 'Fast day', '', 0], ['food:refeed_day', 'Refeed day', '', 0],
+  ['food:kcal', 'Energy of a fast day', 'kcal', 0], ['food:protein_g', 'Protein of a fast day', 'g', 0],
+  ['food:carbs_g', 'Carbs of a fast day', 'g', 0], ['food:fat_g', 'Fat of a fast day', 'g', 0],
+]
 // the Fitbit values of each day (the band's own values; a sleep belongs to the day on which it ends), in groups in the
 // Fitbit tab of the history
 export const FITBIT_GROUPS: [string, Value[]][] = [
@@ -97,7 +107,7 @@ export const LOAD: Value[] = [
 ]
 // the values the large view of a chart can set against its own value, by day: blood pressure, pulse, the vessels,
 // the body composition, the user's own angina score and ketones, the tape measure, the HRV, HR recovery
-// and stairs tests, the sleep, the training load and the Fitbit values. Not the values of the sessions: a day mixes activities, so they have
+// and stairs tests, the sleep, the food, the training load and the Fitbit values. Not the values of the sessions: a day mixes activities, so they have
 // no value of a day
 export const RELATION_CHOICES: Value[] = [
   ['systolic', 'Systolic blood pressure', 'mmHg', 0], ['diastolic', 'Diastolic blood pressure', 'mmHg', 0],
@@ -107,6 +117,8 @@ export const RELATION_CHOICES: Value[] = [
   ...HRV.map(([key, label, unit, decimals]): Value => [key, `${label} (HRV test)`, unit, decimals]),
   ...RECOVERY.map(([key, label, unit, decimals]): Value => [key, `${label} (HR recovery test)`, unit, decimals]),
   ...STAIRS.map(([key, label, unit, decimals]): Value => [key, `${label} (stairs test)`, unit, decimals]),
-  ...SLEEP, ...LOAD,
+  ...SLEEP,
+  ...FOOD.map(([key, label, unit, decimals]): Value => [key, /food/i.test(label) ? label : `${label} (food)`, unit, decimals]),
+  ...LOAD,
   ...FITBIT.map(([key, label, unit, decimals]): Value => [key, `${label} (Fitbit)`, unit, decimals]),
 ]
