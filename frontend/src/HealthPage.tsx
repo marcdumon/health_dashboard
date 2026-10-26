@@ -386,8 +386,6 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
 }
 
 const RANGES = [30, 90, 365]
-// the home blood pressure line of the systolic and diastolic charts
-const HOME_BP_NOTE = 'home (ESH): 7-day mean'
 const TABS: [string, string][] = [['heart', 'Heart and vessels'], ['h10', 'Polar H10'], ['hrv', 'HRV'], ['recovery', 'Recovery'],
                                   ['stairs', 'Stairs'], ['sleep', 'Sleep'], ['fitbit', 'Fitbit'], ['body', 'Body composition'], ['parts', 'Body parts'],
                                   ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['daily', 'Angina and ketones']]
@@ -537,14 +535,14 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
       )}
       {rows.length > 0 && tab === 'heart' && (
         <div className="health-charts">
-          <Chart rows={rows} title="Systolic blood pressure" unit="mmHg" decimals={0} note={HOME_BP_NOTE}
+          <Chart rows={rows} title="Systolic blood pressure" unit="mmHg" decimals={0} note={MEAN_NOTE}
                  lines={[{ key: 'systolic', label: 'Systolic', kind: 's1', name: 'Systolic blood pressure' },
-                         { key: 'systolic_7d', label: 'Home systolic (ESH)', kind: 's2', decimals: 1,
-                           name: 'Home systolic blood pressure (ESH)' }]} />
-          <Chart rows={rows} title="Diastolic blood pressure" unit="mmHg" decimals={0} note={HOME_BP_NOTE}
+                         { key: 'systolic_7d', label: '7-day mean', kind: 's2', decimals: 1,
+                           name: 'Systolic blood pressure, 7-day mean' }]} />
+          <Chart rows={rows} title="Diastolic blood pressure" unit="mmHg" decimals={0} note={MEAN_NOTE}
                  lines={[{ key: 'diastolic', label: 'Diastolic', kind: 's1', name: 'Diastolic blood pressure' },
-                         { key: 'diastolic_7d', label: 'Home diastolic (ESH)', kind: 's2', decimals: 1,
-                           name: 'Home diastolic blood pressure (ESH)' }]} />
+                         { key: 'diastolic_7d', label: '7-day mean', kind: 's2', decimals: 1,
+                           name: 'Diastolic blood pressure, 7-day mean' }]} />
           <Chart rows={rows} title="Pulse" unit="bpm" note={`blood pressure monitor, ${MEAN_NOTE}`} decimals={0}
                  lines={withMean('pulse', 'Pulse', 0)} />
           <Chart rows={rows} title="Heart rate (scale)" unit="bpm" note={`standing, ${MEAN_NOTE}`} decimals={0}

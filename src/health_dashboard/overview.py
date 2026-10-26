@@ -104,7 +104,7 @@ def _pressure(rows: list[dict], day: date) -> dict:
     home = trends.home_pressure(day)
     if home is None:
         return tile
-    detail = f"{_part('Morning', home['morning'])}, {_part('evening', home['evening'])}; ESH method, {home['readings']} readings"
+    detail = f"{_part('Morning', home['morning'])}, {_part('evening', home['evening'])}; {home['readings']} readings"
     tile |= {'value': home['systolic'], 'text': f"{round(home['systolic'])}/{round(home['diastolic'])}",
              'change': _change(home['systolic'], rows, 'systolic', 'mmHg', 1), 'detail': detail[0].upper() + detail[1:]}
     return _ranged(tile, home['systolic'], _usual(rows, 'systolic'), 'usual systolic range', 0, 'mmHg')
