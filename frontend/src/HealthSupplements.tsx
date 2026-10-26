@@ -210,7 +210,24 @@ function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: st
 function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onDay: (day: string) => void }) {
   const client = useQueryClient()
   const { moments, items, changes } = regime
-  const [drafts, setDrafts] = useState<Record<number, Draft>>(() => Object.fromEntries(items.map(s => [s.id, draftOf(s, moments)])))
+  // only the rows typed in have a draft: the regime when the typing started (base) and the fields now. A field not typed in
+  // takes the value of the regime as it is now, so a change made elsewhere (a reload of the regime) is never saved back
+  // over with an old value
+  const [drafts, setDrafts] = useState<Record<number, { base: Draft; now: Draft }>>({})
+  const draftFor = (s: RegimeItem, ms: string[] = moments): Draft => {
+    const current = draftOf(s, ms)
+    const typed = drafts[s.id]
+    if (!typed) return current
+    const { base, now } = typed
+    const pick = <T,>(mine: T, start: T, theirs: T) => (mine !== start ? mine : theirs)
+    return {
+      name: pick(now.name, base.name, current.name), unit: pick(now.unit, base.unit, current.unit),
+      step: pick(now.step, base.step, current.step), comment: pick(now.comment, base.comment, current.comment),
+      plan: Object.fromEntries(ms.map(m => [m, pick(now.plan[m], base.plan[m], current.plan[m])])),
+    }
+  }
+  const edit = (s: RegimeItem, next: Draft) =>
+    setDrafts(previous => ({ ...previous, [s.id]: { base: previous[s.id]?.base ?? draftOf(s, moments), now: next } }))
   // the regime after a change, for this dialog, the card and the history
   const show = (next: Regime) => {
     client.setQueryData(['health-regime', day], { regime: next })
@@ -219,23 +236,27 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
   }
   // a supplement added or removed keeps the drafts of the others
   const keep = (next: Regime) => setDrafts(previous => Object.fromEntries(
-    next.items.map(s => [s.id, previous[s.id] ?? draftOf(s, next.moments)])))
+    next.items.flatMap(s => (previous[s.id] ? [[s.id, previous[s.id]]] : []))))
   const [draft, setDraft] = useState(EMPTY)
-  const edited = items.filter(s => drafts[s.id] && changed(drafts[s.id], s, moments))
+  const edited = items.filter(s => drafts[s.id] && changed(draftFor(s), s, moments))
   const wrong = edited.flatMap(s => {
-    const fields = fieldsOf(drafts[s.id], moments)
-    return typeof fields === 'string' ? [`${drafts[s.id].name.trim() || s.name}: ${fields}`] : []
+    const fields = fieldsOf(draftFor(s), moments)
+    return typeof fields === 'string' ? [`${draftFor(s).name.trim() || s.name}: ${fields}`] : []
   })
   const save = useMutation({
     mutationFn: async () => {
+      // the regime as it is now, so a field not typed in keeps the value it has now, also when this popup has an old copy
+      const fresh = (await getRegime(day)).regime
       let next: Regime | null = null
-      for (const s of edited) next = (await changeSupplement(s.id, day, fieldsOf(drafts[s.id], moments) as SupplementChangeFields)).regime
-      return next
+      for (const s of fresh.items.filter(f => edited.some(e => e.id === f.id) && changed(draftFor(f, fresh.moments), f, fresh.moments))) {
+        next = (await changeSupplement(s.id, day, fieldsOf(draftFor(s, fresh.moments), fresh.moments) as SupplementChangeFields)).regime
+      }
+      return next ?? fresh
     },
     onSuccess: next => {
       if (!next) return
       show(next)
-      setDrafts(Object.fromEntries(next.items.map(s => [s.id, draftOf(s, next.moments)])))
+      setDrafts({})
     },
     scope: SCOPE,
   })
@@ -288,9 +309,9 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
               <th scope="col" className="regime-plan">A day</th><th scope="col"><span className="sr-only">Remove</span></th>
             </tr>
           </thead>
-          {items.filter(s => drafts[s.id]).map(s => (
-            <RegimeRow key={s.id} item={s} draft={drafts[s.id]} moments={moments} edited={edited.includes(s)}
-                       onDraft={next => setDrafts({ ...drafts, [s.id]: next })} onRemove={() => remove.mutate(s.id)} />
+          {items.map(s => (
+            <RegimeRow key={s.id} item={s} draft={draftFor(s)} moments={moments} edited={edited.includes(s)}
+                       onDraft={next => edit(s, next)} onRemove={() => remove.mutate(s.id)} />
           ))}
           <tbody>
             <tr className="regime-add">
