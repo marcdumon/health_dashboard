@@ -59,7 +59,7 @@ def test_the_pressure_tile_has_the_home_mean_and_is_above_the_usual_range_after_
         reading(2 * n + 1, f'{day}T20:00', systolic=136.0 if high else 118.0 + n % 3, diastolic=86.0 if high else 78.0)
     pressure = tiles()['pressure']
     assert (pressure['text'], pressure['unit'], pressure['status']) == ('138/88', 'mmHg', 'above')
-    assert pressure['detail'] == 'Morning 140/90 (6 readings), evening 136/86 (6 readings); ESH method, 12 readings'
+    assert pressure['detail'] == 'Morning 140/90 (7 readings), evening 136/86 (7 readings); ESH method, 14 readings'
     # the systolic day means of the 60 days before: 119, 120 and 121 in turn, SD 0.82
     assert pressure['status_text'] == 'above your usual systolic range 119–121 mmHg'
 

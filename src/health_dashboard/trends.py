@@ -4,8 +4,8 @@ moving average of the day means with 10 % a day (the Hacker's Diet), 1 - 0.9^n a
 before the period so it has settled; the muscle % of each measurement comes from its muscle mass and weight. The rate of
 the weight: the least-squares slope of the day means of the 28 days up to a day, in kg a week, with its 95 % interval; a
 change counts only when the interval leaves out 0 (else "steady"). The home blood pressure of the ESH method: the mean of
-the readings of the 7 days up to a day without the first of them (day d-5 to d), with the morning (before 12:00) and the
-evening apart; no diagnostic thresholds. The 7-day mean of the other heart and vessel values (the pulse of the blood
+the readings of the 7 days up to a day (day d-6 to d), with the morning (before 12:00) and the evening apart; no
+diagnostic thresholds. The 7-day mean of the other heart and vessel values (the pulse of the blood
 pressure monitor, the heart rate of the scale, the pulse wave velocity, the vascular age and the nerve health score): the
 mean of the readings of the 7 days up to a day, with at least ROLLING_MIN_READINGS. A hidden reading counts nowhere. A day
 is the calendar day of the local time (store.health_day)."""
@@ -125,7 +125,7 @@ def _mean(readings: list[tuple[date, int, float, float]]) -> dict:
 
 def _esh(day: date, readings: list[tuple[date, int, float, float]]) -> dict | None:
     """The home blood pressure of `day` from these readings (see the module); None with fewer than ESH_MIN_READINGS."""
-    since = day - timedelta(days=ESH_DAYS - 2)
+    since = day - timedelta(days=ESH_DAYS - 1)
     found = [r for r in readings if since <= r[0] <= day]
     if len(found) < ESH_MIN_READINGS:
         return None

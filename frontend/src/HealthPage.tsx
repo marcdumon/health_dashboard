@@ -387,7 +387,7 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
 
 const RANGES = [30, 90, 365]
 // the home blood pressure line of the systolic and diastolic charts
-const HOME_BP_NOTE = 'home (ESH): the mean of the readings of the 7 days up to each day, without the first day; at least 4'
+const HOME_BP_NOTE = 'home (ESH): the mean of the readings of the 7 days up to each day; at least 4'
 const TABS: [string, string][] = [['heart', 'Heart and vessels'], ['h10', 'Polar H10'], ['hrv', 'HRV'], ['recovery', 'Recovery'],
                                   ['stairs', 'Stairs'], ['sleep', 'Sleep'], ['fitbit', 'Fitbit'], ['body', 'Body composition'], ['parts', 'Body parts'],
                                   ['tape', 'Tape measure'], ['supplements', 'Supplements'], ['daily', 'Angina and ketones']]

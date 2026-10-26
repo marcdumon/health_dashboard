@@ -100,7 +100,7 @@ def _pressure(rows: list[dict], day: date) -> dict:
     """The tile of the blood pressure: the home mean of the ESH method, the morning and the evening, and the systolic
     mean against its usual range."""
     tile = _tile('pressure', 'Blood pressure', 'mmHg', f'Measure your blood pressure: at least {trends.ESH_MIN_READINGS} '
-                 'readings in 6 days, in the morning and in the evening.', rows, 'systolic')
+                 'readings in 7 days, in the morning and in the evening.', rows, 'systolic')
     home = trends.home_pressure(day)
     if home is None:
         return tile

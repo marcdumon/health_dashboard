@@ -1,7 +1,7 @@
 """The values derived from the Withings readings: the trend of each body composition value (10 % a day, gaps allowed
 for), the rate of the weight
-over 28 days with its 95 % interval, and the home blood pressure of the ESH method (the readings of the 7 days up to a day
-without the first day) with the morning and the evening apart; a hidden reading counts nowhere."""
+over 28 days with its 95 % interval, and the home blood pressure of the ESH method (the readings of the 7 days up to a day)
+with the morning and the evening apart; a hidden reading counts nowhere."""
 
 from datetime import date
 
@@ -66,20 +66,20 @@ def test_a_weight_that_goes_up_and_down_is_steady_and_too_few_days_give_no_rate(
     assert trends.rate(date(2026, 7, 5)) is None, '5 weigh-in days: fewer than 8'
 
 
-def test_the_home_blood_pressure_leaves_out_the_first_of_the_7_days_and_splits_the_morning_and_the_evening() -> None:
+def test_the_home_blood_pressure_is_the_mean_of_the_7_days_and_splits_the_morning_and_the_evening() -> None:
     reading(1, '2026-07-01T08:00', systolic=180.0, diastolic=110.0)
     reading(2, '2026-07-02T08:00', systolic=130.0, diastolic=80.0)
     reading(3, '2026-07-03T21:00', systolic=120.0, diastolic=76.0)
     reading(4, '2026-07-05T07:30', systolic=128.0, diastolic=82.0)
     reading(5, '2026-07-07T19:00', systolic=118.0, diastolic=74.0)
     reading(6, '2026-07-07T20:00', hidden=True, systolic=200.0, diastolic=120.0)
-    found = trends.home_pressure(date(2026, 7, 7))
+    found = trends.home_pressure(date(2026, 7, 8))
     assert found == {'systolic': 124.0, 'diastolic': 78.0, 'readings': 4,
                      'morning': {'systolic': 129.0, 'diastolic': 81.0, 'readings': 2},
                      'evening': {'systolic': 119.0, 'diastolic': 75.0, 'readings': 2}}
-    days = trends.day_values('2026-07-06', '2026-07-07')
-    assert days['2026-07-07'] == {'systolic_7d': 124.0, 'diastolic_7d': 78.0}, 'without the 180/110 of 1 July'
-    assert days['2026-07-06'] == {'systolic_7d': 139.5, 'diastolic_7d': 87.0}, 'from 1 to 6 July: with it'
+    days = trends.day_values('2026-07-07', '2026-07-08')
+    assert days['2026-07-08'] == {'systolic_7d': 124.0, 'diastolic_7d': 78.0}, 'from 2 to 8 July: without the 180/110 of 1 July'
+    assert days['2026-07-07'] == {'systolic_7d': 135.2, 'diastolic_7d': 84.4}, 'from 1 to 7 July: with it'
     assert trends.home_pressure(date(2026, 7, 4)) is None
 
 
