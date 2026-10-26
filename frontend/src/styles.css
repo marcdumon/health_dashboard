@@ -378,7 +378,7 @@ details.habit-card > summary { cursor: pointer; font-weight: 600; }
 .health-moment-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
 .health-moment-head h3, .health-angina h3 { margin: 0; font-size: 15px; color: var(--accent); }
 .health-moment-head h3 .muted, .health-angina h3 .muted { margin-left: 6px; font-size: 13px; font-weight: 500; }
-.health-head-actions { display: flex; gap: 6px; }
+.health-head-actions { display: flex; gap: 6px; margin-left: auto; }
 .health-head-actions button { padding: 4px 10px; font-size: 13px; }
 .health-unit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .health-unit-list li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; min-height: 36px; }
@@ -546,7 +546,6 @@ dialog.health-guide::backdrop { background: rgb(0 0 0 / 0.5); }
 /* removing a wrong measurement: a click on a day in a chart opens its row in the table, with each weigh-in and each
    blood pressure reading of that day apart; the removed ones are listed under the table with Put back */
 .chart svg.pickable { cursor: pointer; }
-.health-pick-hint { margin: 0; font-size: 13px; }
 .health-day-button { text-align: left; white-space: nowrap; }
 .health-table tr.picked td { background: var(--accent-wash); }
 .health-table tr.picked .health-day-button { font-weight: 700; }

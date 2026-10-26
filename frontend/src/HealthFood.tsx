@@ -21,7 +21,6 @@ export function Food({ data, before, labels, onChange }: {
 }) {
   return (
     <section className="health-angina health-food">
-      <p className="muted health-hint">The scales: 0 = your usual day.</p>
       <FoodDayPart pageDay={data.day} day={before} label={labels[0]} food={data.food.day_before} onChange={onChange} />
       <FoodDayPart pageDay={data.day} day={data.day} label={labels[1]} food={data.food.day} onChange={onChange} />
     </section>

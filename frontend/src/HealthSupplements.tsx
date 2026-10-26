@@ -50,9 +50,7 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
   return (
     <section className="health-supplements">
       <div className="health-moment-head">
-        <p className="muted health-hint">
-          {items.length ? 'Taken logs the plan of a moment, +1 one dose.' : 'No supplements yet. Add them in the regime.'}
-        </p>
+        {!items.length && <p className="muted health-hint">No supplements yet. Add them in the regime.</p>}
         <div className="health-head-actions">
           <button type="button" className="quiet" onClick={() => setRegime(true)}>Regime</button>
         </div>
@@ -195,11 +193,6 @@ function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: st
         {day !== today && <button type="button" className="quiet" onClick={() => setDay(today)}>Today</button>}
         <button type="button" className="quiet" onClick={() => dialog.current?.close()}>Close</button>
       </div>
-      <p className="muted health-hint">
-        {day > today ? 'This day has not come yet: Save plans the change from this day on. ' : ''}
-        Change the fields, then press Save. A change counts from this day on; the days before keep their plan. The amounts
-        are in the unit of the supplement.
-      </p>
       {found.isError && <p className="cap-error">{found.error.message}</p>}
       {found.data && <RegimeEditor key={day} day={day} regime={found.data.regime} onDay={setDay} />}
     </dialog>,
@@ -290,9 +283,7 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
         </label>
         <button type="button" disabled={!target || target === day || edited.length > 0 || copy.isPending}
                 onClick={() => copy.mutate()}>Copy</button>
-        <span className="muted">
-          {edited.length ? 'Save the changes first.' : `From that day on, the plan is the plan of ${shortDay(day)}.`}
-        </span>
+        {edited.length > 0 && <span className="muted">Save the changes first.</span>}
       </div>
       <div className="health-table regime-table">
         <table>

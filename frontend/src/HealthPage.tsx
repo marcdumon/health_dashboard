@@ -176,7 +176,6 @@ function Angina({ data, onChange }: { data: HealthView; onChange: (v: HealthView
   })
   return (
     <section className="health-angina">
-      <p className="muted health-hint">0 = none, 5 = worst; not measured on a day without exertion.</p>
       <div className="health-scores" role="group" aria-label="Angina score of the day">
         {[0, 1, 2, 3, 4, 5].map(n => (
           // clicking the chosen score again clears it
@@ -208,7 +207,6 @@ function Ketones({ data, onChange }: { data: HealthView; onChange: (v: HealthVie
   const step = (level: number) => data.ketostix.findIndex(k => k.level === level)
   return (
     <section className="health-angina health-ketones">
-      <p className="muted health-hint">Ketostix, read after 15 seconds; click the colour of the strip.</p>
       <div className="health-scores health-strips" role="group" aria-label="Note a Ketostix reading at the time now">
         {data.ketostix.map((k, i) => (
           <button key={k.level} type="button" className="choice-chip" disabled={add.isPending} onClick={() => add.mutate(k.level)}>
@@ -243,8 +241,6 @@ function TapeCard({ data, onChange }: { data: HealthView; onChange: (v: HealthVi
   return (
     <section className="health-angina health-tape">
       <div className="health-moment-head">
-        <p className="muted health-hint">Circumference in cm, once a week; the arms relaxed
-          {last ? `; grey: the values of ${longDay(last.day)}` : ''}.</p>
         <div className="health-head-actions"><TapeGuideButton /></div>
       </div>
       <div className="health-tape-grid">
@@ -378,7 +374,6 @@ function WithingsStatusLine({ status, fetching, onFetch }: { status: WithingsSta
       <div className="health-setup">
         {status.error && <p className="cap-error">{status.error}</p>}
         <button type="button" className="primary" onClick={connect}>{status.error ? 'Connect again' : 'Connect Withings'}</button>
-        <p className="muted">You sign in at Withings and press Allow; Withings then sends you back here.</p>
       </div>
     )
   }
@@ -572,10 +567,6 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
         ))}
       </div>
       {history.isError && <p className="cap-error">{history.error.message}</p>}
-      {rows.length > 0 && (tab !== 'hrv' || tested) && (tab !== 'recovery' || recovered) && (tab !== 'stairs' || climbed) && (
-        <p className="muted health-pick-hint">Click a day in a chart to see its measurements in the table, and to remove a wrong
-          one.</p>
-      )}
       {rows.length > 0 && tab === 'heart' && (
         <div className="health-charts">
           <Chart rows={rows} title="Systolic blood pressure" unit="mmHg" decimals={0} note={MEAN_NOTE}
@@ -625,8 +616,6 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
               {exercises.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </label>
-          <p className="muted">The HR of a session depends on what you did, so these charts compare the sessions of one
-            activity.</p>
           {chosen && H10.map(([key, label, unit, decimals]) => (
             <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals} lines={one(key, label)} connect
                    note={[H10_NOTES[key], `${chosen.name} only`].filter(Boolean).join(', ')} activity={{ id: chosen.id, name: chosen.name }} />
