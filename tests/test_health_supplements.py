@@ -277,24 +277,18 @@ def test_a_comment_says_how_to_take_a_supplement_and_a_change_without_one_keeps_
         supplements.change_supplement(coq10, DAY, 'CoQ10', 'mg', 100, {}, 'x' * 201)
 
 
-def entries(day: date) -> list[tuple]:
-    """The entries of a day: supplement, time, amount and moment, in time order."""
-    return [(s['name'], e['taken_at'], e['amount'], e['moment']) for s in supplements.day_view(day)['items'] for e in s['entries']]
-
-
-def test_a_copy_replaces_the_entries_of_a_day_with_those_of_another_day() -> None:
-    _, calcium, valerian = planned_day()
-    later = DAY + timedelta(days=1)
-    supplements.take_moment(DAY, 'First meal', '09:12')
-    supplements.add_intake(DAY, valerian, '22:30')
-    supplements.add_intake(later, calcium, '07:00', 50)
-    source = entries(DAY)
-    assert supplements.copy_day(DAY, later) == 3
-    assert entries(later) == source, 'the same supplements, times, amounts and moments; the 50 mg of calcium went'
-    assert entries(DAY) == source, 'a copy: the first day keeps its entries'
-    supplements.remove_supplement(valerian, later)
-    assert supplements.copy_day(DAY, later) == 2, 'not a supplement that is not in the list on that day'
+def test_a_copy_of_the_regime_of_a_day_is_the_plan_from_another_day_on() -> None:
+    sel, calcium, _ = planned_day()
+    supplements.change_supplement(sel, DAY + timedelta(days=2), 'Selenium', 'mg', 3, {'First meal': 9})
+    supplements.change_supplement(calcium, DAY + timedelta(days=2), 'Calcium', 'mg', 100, {})
+    zinc = supplements.add_supplement(DAY + timedelta(days=1), 'Zinc', 'mg', 10)
+    supplements.change_supplement(zinc, DAY + timedelta(days=1), 'Zinc', 'mg', 10, {'Midday': 10})
+    target = DAY + timedelta(days=5)
+    assert supplements.copy_regime(DAY, target) == 4, 'Selenium twice, Calcium and Zinc'
+    for name in ('Selenium', 'Calcium', 'Valerian'):
+        assert plan(target, name) == plan(DAY, name)
+    assert plan(target, 'Zinc') == dict.fromkeys(supplements.MOMENTS, 0), 'not in the list on the first day: no plan'
+    assert plan(target - timedelta(days=1), 'Selenium')['First meal'] == 9, 'the days before keep their plan'
+    assert supplements.copy_regime(DAY, target) == 0, 'nothing left to change'
     with pytest.raises(ValueError, match='two different days'):
-        supplements.copy_day(DAY, DAY)
-    with pytest.raises(ValueError, match='No supplements'):
-        supplements.copy_day(DAY - timedelta(days=1), later)
+        supplements.copy_regime(DAY, DAY)

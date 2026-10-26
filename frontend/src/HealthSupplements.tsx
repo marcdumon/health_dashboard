@@ -3,8 +3,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
-  addIntake, addSupplement, changeSupplement, copySupplements, getRegime, removeIntake, removeSupplement, setIntakeAmount, takeMoment,
-  undoMoment,
+  addIntake, addSupplement, changeSupplement, copyRegime, getRegime, removeIntake, removeSupplement, setIntakeAmount, takeMoment, undoMoment,
   type HealthSupplement, type HealthView, type Regime, type RegimeItem, type SupplementChange, type SupplementChangeFields,
 } from './api'
 import { closeOutside } from './dialog'
@@ -22,11 +21,6 @@ const UNITS = ['mg', 'µg', 'g', 'IU', 'FU']
 export const amount = (n: number) => String(+n.toFixed(2))
 export const shortDay = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-const dayBefore = (day: string) => {
-  const d = new Date(`${day}T12:00:00`)
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
-}
 
 // what a change of the plan did to the amount a day
 export const changeText = (c: SupplementChange) => {
@@ -45,7 +39,6 @@ export function supplementSummary(view: HealthView['supplements']): string {
 
 export function Supplements({ data, onChange }: { data: HealthView; onChange: Change }) {
   const [regime, setRegime] = useState(false)
-  const [copying, setCopying] = useState(false)
   const done = { onSuccess: onChange, scope: SCOPE }
   const take = useMutation({ mutationFn: (moment: string) => takeMoment(data.day, moment, clock()), ...done })
   const undo = useMutation({ mutationFn: (moment: string) => undoMoment(data.day, moment), ...done })
@@ -61,11 +54,9 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
           {items.length ? 'Taken logs the plan of a moment, +1 one dose.' : 'No supplements yet. Add them in the regime.'}
         </p>
         <div className="health-head-actions">
-          <button type="button" className="quiet" aria-expanded={copying} onClick={() => setCopying(!copying)}>Copy</button>
           <button type="button" className="quiet" onClick={() => setRegime(true)}>Regime</button>
         </div>
       </div>
-      {copying && <CopyDays key={data.day} data={data} onChange={onChange} />}
       {moments.some(m => m.planned) && (
         <div className="supplement-moments" role="group" aria-label="Moments of the day">
           {moments.filter(m => m.planned).map(m => (m.taken_at ? (
@@ -89,27 +80,6 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
       {error && <p className="cap-error">{error.message}</p>}
       {regime && <RegimeDialog day={data.day} today={data.today} onClose={() => setRegime(false)} />}
     </section>
-  )
-}
-
-// the supplements of one day copied to another (the day before to the day of the page at first): each entry with its time,
-// amount and moment. The entries of the second day are replaced
-function CopyDays({ data, onChange }: { data: HealthView; onChange: Change }) {
-  const [from, setFrom] = useState(dayBefore(data.day))
-  const [to, setTo] = useState(data.day)
-  const copy = useMutation({ mutationFn: () => copySupplements(from, to, data.day), onSuccess: onChange, scope: SCOPE })
-  return (
-    <div className="supplement-copy">
-      <label>Copy the supplements of
-        <input type="date" value={from} max={data.today} aria-label="Day to copy from" onChange={e => setFrom(e.target.value)} />
-      </label>
-      <label>to
-        <input type="date" value={to} max={data.today} aria-label="Day to copy to" onChange={e => setTo(e.target.value)} />
-      </label>
-      <button type="button" disabled={!from || !to || from === to || copy.isPending} onClick={() => copy.mutate()}>Copy</button>
-      <p className="muted health-hint">The supplements of the second day are replaced.</p>
-      {copy.isError && <p className="cap-error">{copy.error.message}</p>}
-    </div>
   )
 }
 
@@ -208,7 +178,8 @@ const changed = (d: Draft, s: RegimeItem, moments: string[]) => {
 // the regime of a day, the day of the page at first: any day can be chosen, an earlier one to see the plan it had, a
 // later one to plan a change. Per supplement its unit, one dose, comment and the amount at each moment. The fields are drafts until
 // Save, which saves every changed supplement from the chosen day on; Close or another day leaves the drafts unsaved. Remove
-// and Add act at once, from the chosen day on. Below: every change of the plan, each a link to its day
+// and Add act at once, from the chosen day on. Copy gives another day the plan of the chosen day, from that day on. Below:
+// every change of the plan, each a link to its day
 function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: string; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { dialog.current?.showModal() }, [])
@@ -275,7 +246,20 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
                                            comment: draft.comment.trim() }),
     onSuccess: ({ regime: next }) => { show(next); keep(next); setDraft(EMPTY) }, scope: SCOPE,
   })
-  const error = save.error ?? remove.error ?? add.error
+  // the regime of this day copied to another day, from which it counts; the popup then shows that day
+  const [target, setTarget] = useState('')
+  const copy = useMutation({
+    mutationFn: () => copyRegime(day, target),
+    onSuccess: ({ regime: next }) => {
+      client.invalidateQueries({ queryKey: ['health-regime'] })
+      client.setQueryData(['health-regime', target], { regime: next })
+      client.invalidateQueries({ queryKey: ['health'] })
+      client.invalidateQueries({ queryKey: ['health-history'] })
+      onDay(target)
+    },
+    scope: SCOPE,
+  })
+  const error = save.error ?? remove.error ?? add.error ?? copy.error
   return (
     <>
       <div className="health-table regime-table">
@@ -321,6 +305,17 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
           {wrong.length ? wrong.join('; ')
             : edited.length ? `${edited.length} ${edited.length === 1 ? 'supplement' : 'supplements'} changed, not saved yet`
               : 'No changes'}
+        </span>
+      </div>
+      <div className="regime-save regime-copy">
+        <label>Copy this regime to{' '}
+          <input type="date" className="regime-day" value={target} aria-label="Day to copy this regime to"
+                 onChange={e => setTarget(e.target.value)} />
+        </label>
+        <button type="button" disabled={!target || target === day || edited.length > 0 || copy.isPending}
+                onClick={() => copy.mutate()}>Copy</button>
+        <span className="muted">
+          {edited.length ? 'Save the changes first.' : `From that day on, the plan is the plan of ${shortDay(day)}.`}
         </span>
       </div>
       {error && <p className="cap-error">{error.message}</p>}

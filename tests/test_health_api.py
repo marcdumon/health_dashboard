@@ -266,14 +266,14 @@ def test_the_tape_measurements_are_set_and_removed(client) -> None:
     assert view['tape']['values'] == {}
 
 
-def test_the_supplements_of_a_day_are_copied_to_another_day(client) -> None:
-    view = client.post('/api/health/supplements', json={'day': '2026-10-07', 'name': 'Calcium', 'dose_unit': 'mg', 'step': 100}).json()
+def test_the_regime_of_a_day_is_copied_to_another_day(client) -> None:
+    view = client.post('/api/health/supplements', json={'day': '2026-10-01', 'name': 'Calcium', 'dose_unit': 'mg', 'step': 100}).json()
     calcium = regime(view, 'Calcium')
-    client.post('/api/health/intakes', json={'day': '2026-10-07', 'supplement_id': calcium['id'], 'taken_at': '08:10'})
-    view = client.post('/api/health/supplements/copy', json={'from_day': '2026-10-07', 'to_day': '2026-10-08'}).json()
-    assert view['day'] == '2026-10-08' and supplement(view, 'Calcium')['total'] == 100
-    view = client.post('/api/health/supplements/copy',
-                       json={'from_day': '2026-10-08', 'to_day': '2026-10-07', 'page_day': '2026-10-08'}).json()
-    assert view['day'] == '2026-10-08', 'the answer is the view of the page'
-    answer = client.post('/api/health/supplements/copy', json={'from_day': '2026-10-08', 'to_day': '2026-10-09'})
-    assert answer.status_code == 400, 'not a day to come'
+    client.put(f'/api/health/supplements/{calcium["id"]}', json={
+        'day': '2026-10-01', 'name': 'Calcium', 'dose_unit': 'mg', 'step': 100, 'plan': {'First meal': 200}})
+    client.put(f'/api/health/supplements/{calcium["id"]}', json={
+        'day': '2026-10-05', 'name': 'Calcium', 'dose_unit': 'mg', 'step': 100, 'plan': {'First meal': 400}})
+    answer = client.post('/api/health/regime/copy', json={'from_day': '2026-10-01', 'to_day': '2026-10-10'}).json()
+    assert regime(answer, 'Calcium')['plan']['First meal'] == 200, 'the answer is the regime of the day copied to'
+    answer = client.post('/api/health/regime/copy', json={'from_day': '2026-10-10', 'to_day': '2026-10-10'})
+    assert answer.status_code == 400 and 'two different days' in answer.json()['detail']

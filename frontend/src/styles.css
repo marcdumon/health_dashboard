@@ -783,9 +783,3 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .health-day-food { margin: 0 0 8px; font-size: 13px; }
 .polar-row-actions { white-space: nowrap; }
 .polar-row-actions button + button { margin-left: 6px; }
-/* the copy of the supplements of one day to another, under the head of the Supplements part */
-.supplement-copy { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 14px; }
-.supplement-copy label { display: inline-flex; align-items: center; gap: 6px; }
-.supplement-copy input { padding: 4px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink);
-  font: inherit; }
-.supplement-copy .health-hint, .supplement-copy .cap-error { flex-basis: 100%; margin: 0; }

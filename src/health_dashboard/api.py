@@ -162,13 +162,11 @@ class HealthIntake(BaseModel):
     amount: float | None = None
 
 
-class HealthCopy(BaseModel):
-    """The supplements of one day copied to another, whose entries they replace; the day of the page gives the view of the
-    answer (default: the day copied to)."""
+class RegimeCopy(BaseModel):
+    """The regime of one day copied to another: from that day on, the plan is the plan of the first day."""
 
     from_day: str
     to_day: str
-    page_day: str | None = None
 
 
 class HealthAmount(BaseModel):
@@ -364,17 +362,6 @@ def health_moment_take(given: HealthMoment) -> dict:
     return _health_view(day)
 
 
-@app.post('/api/health/supplements/copy')
-def health_supplements_copy(given: HealthCopy) -> dict:
-    """Replace the supplements of a day with those of another day; the view of the page's day."""
-    source, target = _health_day(given.from_day), _health_day(given.to_day)
-    try:
-        health_supplements.copy_day(source, target)
-    except ValueError as error:
-        raise HTTPException(400, str(error)) from error
-    return _health_view(_health_day(given.page_day) if given.page_day else target)
-
-
 @app.delete('/api/health/moments')
 def health_moment_undo(day: str, moment: str) -> dict:
     """Remove the entries of a moment of a day at once."""
@@ -387,6 +374,17 @@ def health_moment_undo(day: str, moment: str) -> dict:
 def health_regime(day: str | None = None) -> dict:
     """The supplement regime of a day (today without one), also of a day that has not come yet, with every change."""
     return {'regime': health_supplements.regime(_regime_day(day))}
+
+
+@app.post('/api/health/regime/copy')
+def health_regime_copy(given: RegimeCopy) -> dict:
+    """Copy the regime of a day to another day, from which it counts; the regime of that day."""
+    target = _regime_day(given.to_day)
+    try:
+        health_supplements.copy_regime(_regime_day(given.from_day), target)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return {'regime': health_supplements.regime(target)}
 
 
 @app.post('/api/health/supplements')
