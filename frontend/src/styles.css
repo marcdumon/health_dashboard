@@ -405,7 +405,6 @@ details.habit-card > summary { cursor: pointer; font-weight: 600; }
 .supplement-moment.done button { padding: 0 6px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 16px;
   line-height: 1; cursor: pointer; }
 .supplement-moment.done button:hover { color: var(--error); }
-.health-unit-time { padding: 0 6px 0 8px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .health-amount { display: inline-flex; align-items: center; gap: 3px; padding-right: 8px; font-size: 13px; color: var(--muted); }
 .health-amount input { width: 5em; padding: 4px 2px; border: 0; background: transparent; color: var(--ink); font: inherit;
   font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; }
@@ -782,5 +781,5 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .health-day-food { margin: 0 0 8px; font-size: 13px; }
 .polar-row-actions { white-space: nowrap; }
 .polar-row-actions button + button { margin-left: 6px; }
-/* the copy of the regime to another day, above the table */
-.regime-save.regime-copy { margin: 0 0 10px; }
+/* the copy of the regime to another day, in the head of the popup next to its day */
+.regime-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-right: auto; font-size: 14px; }

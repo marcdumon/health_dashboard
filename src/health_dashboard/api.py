@@ -342,6 +342,17 @@ def health_intake_amount(intake_id: int, given: HealthAmount) -> dict:
         raise HTTPException(404, NO_ENTRY) from error
 
 
+@app.put('/api/health/intakes/{intake_id}/time')
+def health_intake_time(intake_id: int, given: HealthTime) -> dict:
+    """Change the time of an entry."""
+    try:
+        return _health_view(health_supplements.set_time(intake_id, given.taken_at))
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    except KeyError as error:
+        raise HTTPException(404, NO_ENTRY) from error
+
+
 @app.delete('/api/health/intakes/{intake_id}')
 def health_intake_remove(intake_id: int) -> dict:
     """Remove an entry at once."""

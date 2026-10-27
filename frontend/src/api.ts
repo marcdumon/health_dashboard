@@ -8,7 +8,7 @@ export class ApiError extends Error {
 
 // the browser's own words for an unreachable server ('Failed to fetch') tell the user nothing
 export const APP_NOT_RUNNING = 'The health dashboard is not running, so this could not be done. Start it again: '
-  + 'type run_md_health_dashboard in a terminal, then press the button again.'
+  + 'type md_run_health_dashboard in a terminal, then press the button again.'
 
 const reach = (path: string, init?: RequestInit) => fetch(path, init).catch(() => { throw new ApiError(APP_NOT_RUNNING, false, '') })
 
@@ -157,6 +157,8 @@ export const getHealthRelation = (key: string, other: string, days: number | nul
 export const addIntake = (day: string, supplementId: number, takenAt: string, amount: number | null = null) =>
   call<HealthView>('/api/health/intakes', { day, supplement_id: supplementId, taken_at: takenAt, amount })
 export const setIntakeAmount = (id: number, amount: number) => send<HealthView>(`/api/health/intakes/${id}`, 'PUT', { amount })
+export const setIntakeTime = (id: number, takenAt: string) =>
+  send<HealthView>(`/api/health/intakes/${id}/time`, 'PUT', { taken_at: takenAt })
 export const removeIntake = (id: number) => send<HealthView>(`/api/health/intakes/${id}`, 'DELETE')
 export const takeMoment = (day: string, moment: string, takenAt: string) =>
   call<HealthView>('/api/health/moments', { day, moment, taken_at: takenAt })

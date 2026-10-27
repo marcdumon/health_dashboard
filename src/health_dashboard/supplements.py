@@ -355,6 +355,14 @@ def set_amount(intake_id: int, amount: float) -> date:
     return day
 
 
+def set_time(intake_id: int, taken_at: str) -> date:
+    """Change the time of an entry; the day it belongs to. The entry keeps its moment."""
+    with connect(write=True) as db:
+        day = store.day_of(db, 'health_units', intake_id)
+        db.execute('UPDATE health_units SET taken_at = ? WHERE id = ?', (store.checked_time(taken_at), intake_id))
+    return day
+
+
 def remove_intake(intake_id: int) -> date:
     """Remove an entry at once; the day it belonged to."""
     with connect(write=True) as db:

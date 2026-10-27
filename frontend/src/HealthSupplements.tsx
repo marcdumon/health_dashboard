@@ -3,14 +3,15 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
-  addIntake, addSupplement, changeSupplement, copyRegime, getRegime, removeIntake, removeSupplement, setIntakeAmount, takeMoment, undoMoment,
+  addIntake, addSupplement, changeSupplement, copyRegime, getRegime, removeIntake, removeSupplement, setIntakeAmount, setIntakeTime,
+  takeMoment, undoMoment,
   type HealthSupplement, type HealthView, type Regime, type RegimeItem, type SupplementChange, type SupplementChangeFields,
 } from './api'
 import { closeOutside } from './dialog'
-import { clock } from './HealthTime'
+import { clock, TimeField } from './HealthTime'
 
 // the supplements of a day. Taken logs the plan of a moment at the time now, +1 logs one dose; each entry keeps its own
-// amount, which can be changed, and an entry is removed at once. The changes of the card wait for each other: three quick
+// time and amount, which can be changed, and an entry is removed at once. The changes of the card wait for each other: three quick
 // clicks are three entries, and no answer overtakes a later one. Regime opens the list to change it: Save counts from the
 // day of the page on, and the days before keep their plan
 const SCOPE = { id: 'health-supplements' }
@@ -44,8 +45,9 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
   const undo = useMutation({ mutationFn: (moment: string) => undoMoment(data.day, moment), ...done })
   const add = useMutation({ mutationFn: (id: number) => addIntake(data.day, id, clock()), ...done })
   const change = useMutation({ mutationFn: ({ id, value }: { id: number; value: number }) => setIntakeAmount(id, value), ...done })
+  const time = useMutation({ mutationFn: ({ id, at }: { id: number; at: string }) => setIntakeTime(id, at), ...done })
   const remove = useMutation({ mutationFn: (id: number) => removeIntake(id), ...done })
-  const error = take.error ?? undo.error ?? add.error ?? change.error ?? remove.error
+  const error = take.error ?? undo.error ?? add.error ?? change.error ?? time.error ?? remove.error
   const { moments, items } = data.supplements
   return (
     <section className="health-supplements">
@@ -72,7 +74,8 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
       <ul className="health-unit-list">
         {items.map(s => (
           <SupplementRow key={s.id} supplement={s} onAdd={() => add.mutate(s.id)}
-                         onAmount={(id, value) => change.mutate({ id, value })} onRemove={id => remove.mutate(id)} />
+                         onAmount={(id, value) => change.mutate({ id, value })} onTime={(id, at) => time.mutate({ id, at })}
+                         onRemove={id => remove.mutate(id)} />
         ))}
       </ul>
       {error && <p className="cap-error">{error.message}</p>}
@@ -82,8 +85,9 @@ export function Supplements({ data, onChange }: { data: HealthView; onChange: Ch
 }
 
 // one supplement of the day: +1, the amount taken against the plan, and each entry with its time and amount
-function SupplementRow({ supplement: s, onAdd, onAmount, onRemove }: {
-  supplement: HealthSupplement; onAdd: () => void; onAmount: (id: number, value: number) => void; onRemove: (id: number) => void
+function SupplementRow({ supplement: s, onAdd, onAmount, onTime, onRemove }: {
+  supplement: HealthSupplement; onAdd: () => void; onAmount: (id: number, value: number) => void
+  onTime: (id: number, at: string) => void; onRemove: (id: number) => void
 }) {
   const yesNo = !s.dose_unit
   const one = `${amount(s.step ?? 0)} ${s.dose_unit}`
@@ -107,7 +111,8 @@ function SupplementRow({ supplement: s, onAdd, onAmount, onRemove }: {
         <span className="health-units">
           {s.entries.map(e => (
             <span key={e.id} className="health-unit">
-              <span className="health-unit-time">{e.taken_at}</span>
+              <TimeField key={`${e.id}-${e.taken_at}`} value={e.taken_at} label={`Time of the entry of ${s.name} of ${e.taken_at}`}
+                         onSave={at => onTime(e.id, at)} />
               {!yesNo && <AmountField key={e.amount} value={e.amount} unit={s.dose_unit}
                                       label={`Amount of ${s.name} of ${e.taken_at}`} onSave={v => onAmount(e.id, v)} />}
               <button type="button" aria-label={`Remove the entry of ${s.name} of ${e.taken_at}`} title="Remove this entry"
@@ -183,6 +188,23 @@ function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: st
   useEffect(() => { dialog.current?.showModal() }, [])
   const [day, setDay] = useState(pageDay)
   const found = useQuery({ queryKey: ['health-regime', day], queryFn: () => getRegime(day) })
+  const client = useQueryClient()
+  // the regime of this day copied to another day, from which it counts; the popup then shows that day. Not while the
+  // table has changes that are not saved
+  const [unsaved, setUnsaved] = useState(0)
+  const [target, setTarget] = useState('')
+  const copy = useMutation({
+    mutationFn: () => copyRegime(day, target),
+    onSuccess: ({ regime: next }) => {
+      client.invalidateQueries({ queryKey: ['health-regime'] })
+      client.setQueryData(['health-regime', target], { regime: next })
+      client.invalidateQueries({ queryKey: ['health'] })
+      client.invalidateQueries({ queryKey: ['health-history'] })
+      setDay(target)
+      setTarget('')
+    },
+    scope: SCOPE,
+  })
   return createPortal(
     <dialog ref={dialog} className="health-regime regime-dialog accent-health" onClose={onClose} aria-labelledby="regime-title" {...closeOutside}>
       <div className="analysis-head">
@@ -190,17 +212,29 @@ function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: st
           <input type="date" className="regime-day" value={day} aria-label="Day of the regime"
                  onChange={e => e.target.value && setDay(e.target.value)} />
         </h2>
+        <div className="regime-copy">
+          <label>Copy this regime to{' '}
+            <input type="date" className="regime-day" value={target} aria-label="Day to copy this regime to"
+                   onChange={e => setTarget(e.target.value)} />
+          </label>
+          <button type="button" disabled={!target || target === day || unsaved > 0 || copy.isPending}
+                  onClick={() => copy.mutate()}>Copy</button>
+          {unsaved > 0 && <span className="muted">Save the changes first.</span>}
+        </div>
         {day !== today && <button type="button" className="quiet" onClick={() => setDay(today)}>Today</button>}
         <button type="button" className="quiet" onClick={() => dialog.current?.close()}>Close</button>
       </div>
       {found.isError && <p className="cap-error">{found.error.message}</p>}
-      {found.data && <RegimeEditor key={day} day={day} regime={found.data.regime} onDay={setDay} />}
+      {copy.isError && <p className="cap-error">{copy.error.message}</p>}
+      {found.data && <RegimeEditor key={day} day={day} regime={found.data.regime} onDay={setDay} onUnsaved={setUnsaved} />}
     </dialog>,
     document.body,
   )
 }
 
-function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onDay: (day: string) => void }) {
+function RegimeEditor({ day, regime, onDay, onUnsaved }: {
+  day: string; regime: Regime; onDay: (day: string) => void; onUnsaved: (count: number) => void
+}) {
   const client = useQueryClient()
   const { moments, items, changes } = regime
   // only the rows typed in have a draft: the regime when the typing started (base) and the fields now. A field not typed in
@@ -260,31 +294,10 @@ function RegimeEditor({ day, regime, onDay }: { day: string; regime: Regime; onD
                                            comment: draft.comment.trim() }),
     onSuccess: ({ regime: next }) => { show(next); keep(next); setDraft(EMPTY) }, scope: SCOPE,
   })
-  // the regime of this day copied to another day, from which it counts; the popup then shows that day
-  const [target, setTarget] = useState('')
-  const copy = useMutation({
-    mutationFn: () => copyRegime(day, target),
-    onSuccess: ({ regime: next }) => {
-      client.invalidateQueries({ queryKey: ['health-regime'] })
-      client.setQueryData(['health-regime', target], { regime: next })
-      client.invalidateQueries({ queryKey: ['health'] })
-      client.invalidateQueries({ queryKey: ['health-history'] })
-      onDay(target)
-    },
-    scope: SCOPE,
-  })
-  const error = save.error ?? remove.error ?? add.error ?? copy.error
+  useEffect(() => onUnsaved(edited.length), [edited.length, onUnsaved])
+  const error = save.error ?? remove.error ?? add.error
   return (
     <>
-      <div className="regime-save regime-copy">
-        <label>Copy this regime to{' '}
-          <input type="date" className="regime-day" value={target} aria-label="Day to copy this regime to"
-                 onChange={e => setTarget(e.target.value)} />
-        </label>
-        <button type="button" disabled={!target || target === day || edited.length > 0 || copy.isPending}
-                onClick={() => copy.mutate()}>Copy</button>
-        {edited.length > 0 && <span className="muted">Save the changes first.</span>}
-      </div>
       <div className="health-table regime-table">
         <table>
           <thead>

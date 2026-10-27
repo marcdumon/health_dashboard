@@ -56,6 +56,8 @@ def test_the_day_shows_the_supplements_the_regime_and_the_angina_score(client) -
     assert (entry['taken_at'], entry['amount']) == ('12:23', 100), 'one dose'
     view = client.put(f'/api/health/intakes/{entry["id"]}', json={'amount': 300}).json()
     assert supplement(view, 'Calcium')['total'] == 300 and view['day'] == '2026-10-08'
+    view = client.put(f'/api/health/intakes/{entry["id"]}/time', json={'taken_at': '11:05'}).json()
+    assert supplement(view, 'Calcium')['entries'][0]['taken_at'] == '11:05' and view['day'] == '2026-10-08'
     assert supplement(client.delete(f'/api/health/intakes/{entry["id"]}').json(), 'Calcium')['entries'] == []
     view = client.put('/api/health/angina', json={'day': '2026-10-08', 'score': 2, 'note': 'stairs'}).json()
     assert view['angina'] == {'score': 2, 'note': 'stairs', 'not_measured': False}
@@ -72,6 +74,7 @@ def test_a_wrong_entry_an_unknown_supplement_or_a_future_day_is_refused(client) 
     assert client.post('/api/health/intakes', json=entry | {'supplement_id': 999}).status_code == 404
     assert client.post('/api/health/intakes', json=entry | {'day': '2026-10-09'}).status_code == 400
     assert client.put('/api/health/intakes/999', json={'amount': 1}).status_code == 404
+    assert client.put('/api/health/intakes/999/time', json={'taken_at': '08:00'}).status_code == 404
     assert client.delete('/api/health/intakes/999').status_code == 404
     moment = {'day': '2026-10-08', 'moment': 'Midday', 'taken_at': '12:00'}
     assert client.post('/api/health/moments', json=moment).status_code == 400, 'nothing planned'

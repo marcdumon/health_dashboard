@@ -76,6 +76,21 @@ def test_each_entry_keeps_its_own_amount() -> None:
         supplements.add_intake(DAY, bran, '8h')
 
 
+def test_an_entry_gets_another_time_and_keeps_its_moment() -> None:
+    _, calcium, _ = planned_day()
+    supplements.take_moment(DAY, 'First meal', '21:40')
+    late = item(DAY, 'Calcium')['entries'][0]['id']
+    supplements.add_intake(DAY, calcium, '10:00')
+    assert supplements.set_time(late, '08:15') == DAY
+    assert [(e['taken_at'], e['moment']) for e in item(DAY, 'Calcium')['entries']] == [('08:15', 'First meal'), ('10:00', None)], \
+        'in time order; the moment stays, a moment is not a clock time'
+    assert supplements.day_view(DAY)['moments'][0]['taken_at'] == '08:15', 'a moment shows the time of its first entry'
+    with pytest.raises(ValueError, match='HH:MM'):
+        supplements.set_time(late, '8h')
+    with pytest.raises(KeyError):
+        supplements.set_time(999, '08:00')
+
+
 def test_a_yes_or_no_is_taken_once_a_day() -> None:
     tea = supplements.add_supplement(DAY, 'Chamomile', '', None)
     supplements.add_intake(DAY, tea, '21:00')
