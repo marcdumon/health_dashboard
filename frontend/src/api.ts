@@ -86,7 +86,7 @@ export type HealthView = {
   sleep: SleepStatus
   fitbit: FitbitStatus
   // the food of the day and of the day before: both are noted in the morning
-  food: { day: FoodDay | null; day_before: FoodDay | null }
+  food: FoodDay | null
   // the tape measurements of the day by site, and the last day with any before it
   tape: { values: Record<string, number>; last: { day: string; values: Record<string, number> } | null }
 }
@@ -180,11 +180,10 @@ export const removeSupplement = (id: number, day: string) =>
   send<{ regime: Regime }>(`/api/health/supplements/${id}?day=${day}`, 'DELETE')
 export const setAngina = (day: string, score: number | null, note: string, notMeasured = false) =>
   send<HealthView>('/api/health/angina', 'PUT', { day, score, note, not_measured: notMeasured })
-// some fields of the food of a day; the answer is the view of the page's day
-export const setFood = (pageDay: string, day: string, changes: Partial<FoodDay>) =>
-  send<HealthView>('/api/health/food', 'PUT', { day, page_day: pageDay, ...changes })
-export const clearFood = (pageDay: string, day: string) =>
-  send<HealthView>(`/api/health/food?day=${day}&page_day=${pageDay}`, 'DELETE')
+// some fields of the food of a day
+export const setFood = (day: string, changes: Partial<FoodDay>) =>
+  send<HealthView>('/api/health/food', 'PUT', { day, ...changes })
+export const clearFood = (day: string) => send<HealthView>(`/api/health/food?day=${day}`, 'DELETE')
 export const setTape = (day: string, site: string, cm: number | null) =>
   send<HealthView>('/api/health/tape', 'PUT', { day, site, cm })
 export const addKetoneReading = (day: string, level: number, takenAt: string) =>

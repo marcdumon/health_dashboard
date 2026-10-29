@@ -107,8 +107,8 @@ def _health_view(day: date) -> dict:
     """The Health page for a day: the supplements of the day with their entries and moments (the regime has its own
     route), the angina score, the Ketostix readings, the tape measurements with the last ones before the day, the latest
     Withings values up to the end of the day, the link, the Polar H10 import with the last sessions up to the day, and the
-    sleep of the day with a look at the Sleep as Android backup, and the Fitbit values of the day with a look at the token,
-    and the food of the day and of the day before (both are noted in the morning)."""
+    sleep of the day with a look at the Sleep as Android backup, the Fitbit values of the day with a look at the token,
+    and the food of the day."""
     now = _health_now()
     return {'day': day.isoformat(), 'today': health_store.health_day(now).isoformat(), 'now': now.strftime('%H:%M'),
             'supplements': health_supplements.day_view(day),
@@ -121,7 +121,7 @@ def _health_view(day: date) -> dict:
                 'last_stairs': polar_stairs.last_test(day.isoformat())},
             'sleep': health_sleep.status(now) | {'day': health_sleep.day_card(day.isoformat())},
             'fitbit': health_fitbit.status() | {'day': health_fitbit.day_card(day.isoformat())},
-            'food': {'day': health_food.day(day), 'day_before': health_food.day(day - timedelta(days=1))}}
+            'food': health_food.day(day)}
 
 
 def _polar_latest(day: str) -> dict:
@@ -215,11 +215,9 @@ class HealthAngina(BaseModel):
 
 
 class HealthFood(BaseModel):
-    """Some fields of the food of a day: the fields not sent stay. The day of the page (default: the food's day) gives the
-    view of the answer, so a note for the day before keeps the page on its day."""
+    """Some fields of the food of a day: the fields not sent stay."""
 
     day: str
-    page_day: str | None = None
     first_food: str | None = None
     last_food: str | None = None
     amount: int | None = None
@@ -447,22 +445,21 @@ def health_angina(given: HealthAngina) -> dict:
 
 @app.put('/api/health/food')
 def health_food_set(given: HealthFood) -> dict:
-    """Some fields of the food of a day; the view of the page's day."""
+    """Some fields of the food of a day; the view of the day."""
     day = _health_day(given.day)
-    page = _health_day(given.page_day) if given.page_day else day
     try:
-        health_food.set_food(day, given.model_dump(exclude_unset=True, exclude={'day', 'page_day'}))
+        health_food.set_food(day, given.model_dump(exclude_unset=True, exclude={'day'}))
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
-    return _health_view(page)
+    return _health_view(day)
 
 
 @app.delete('/api/health/food')
-def health_food_clear(day: str, page_day: str | None = None) -> dict:
-    """Remove the food note of a day at once; the view of the page's day."""
+def health_food_clear(day: str) -> dict:
+    """Remove the food note of a day at once; the view of the day."""
     chosen = _health_day(day)
     health_food.clear(chosen)
-    return _health_view(_health_day(page_day) if page_day else chosen)
+    return _health_view(chosen)
 
 
 @app.put('/api/health/tape')

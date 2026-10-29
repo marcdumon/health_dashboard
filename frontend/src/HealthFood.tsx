@@ -14,43 +14,29 @@ const FAST_FIELDS: [keyof FoodDay, string, string][] = [
 ]
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0')
 
-// the Food part of the Today card: the day before and the day, one above the other, as both are noted in the morning
-// (the last food and the scales of the day before, the first food of the day)
-export function Food({ data, before, labels, onChange }: {
-  data: HealthView; before: string; labels: [string, string]; onChange: (v: HealthView) => void
-}) {
-  return (
-    <section className="health-angina health-food">
-      <FoodDayPart pageDay={data.day} day={before} label={labels[0]} food={data.food.day_before} onChange={onChange} />
-      <FoodDayPart pageDay={data.day} day={data.day} label={labels[1]} food={data.food.day} onChange={onChange} />
-    </section>
-  )
-}
-
-function FoodDayPart({ pageDay, day, label, food, onChange }: {
-  pageDay: string; day: string; label: string; food: FoodDay | null; onChange: (v: HealthView) => void
-}) {
-  const save = useMutation({ mutationFn: (changes: Partial<FoodDay>) => setFood(pageDay, day, changes), onSuccess: onChange })
-  const clear = useMutation({ mutationFn: () => clearFood(pageDay, day), onSuccess: onChange })
+// the Food part of the Today card: the food of the day of the page
+export function Food({ data, onChange }: { data: HealthView; onChange: (v: HealthView) => void }) {
+  const { day, food } = data
+  const save = useMutation({ mutationFn: (changes: Partial<FoodDay>) => setFood(day, changes), onSuccess: onChange })
+  const clear = useMutation({ mutationFn: () => clearFood(day), onSuccess: onChange })
   const error = save.error ?? clear.error
   const busy = save.isPending || clear.isPending
   const change = (key: keyof FoodDay, value: FoodDay[keyof FoodDay]) => save.mutate({ [key]: value } as Partial<FoodDay>)
   return (
-    <div className="health-food-day">
+    <section className="health-angina health-food">
       <div className="health-moment-head">
-        <h3>{label}</h3>
+        <div className="health-food-times">
+          {(['first_food', 'last_food'] as const).map(key => (
+            <label key={key}>{key === 'first_food' ? 'First food' : 'Last food'}
+              {/* a refused time goes back to the stored one: the field starts again from it, the error says why */}
+              <TimeField key={`${day}-${key}-${food?.[key] ?? ''}-${save.isError}`} value={food?.[key] ?? ''}
+                         label={key === 'first_food' ? 'First food' : 'Last food'} onSave={at => change(key, at)} />
+            </label>
+          ))}
+        </div>
         {food && <button type="button" className="quiet" disabled={busy} onClick={() => clear.mutate()}>Clear</button>}
       </div>
-      <div className="health-food-times">
-        {(['first_food', 'last_food'] as const).map(key => (
-          <label key={key}>{key === 'first_food' ? 'First food' : 'Last food'}
-            {/* a refused time goes back to the stored one: the field starts again from it, the error says why */}
-            <TimeField key={`${day}-${key}-${food?.[key] ?? ''}-${save.isError}`} value={food?.[key] ?? ''}
-                       label={`${key === 'first_food' ? 'First' : 'Last'} food, ${label}`} onSave={at => change(key, at)} />
-          </label>
-        ))}
-      </div>
-      <div className="health-scores" role="group" aria-label={`Marks, ${label}`}>
+      <div className="health-scores" role="group" aria-label="Marks">
         {MARKS.map(([key, text]) => (
           <button key={key} type="button" className={`choice-chip${food?.[key] ? ' chosen' : ''}`} aria-pressed={Boolean(food?.[key])}
                   disabled={busy} onClick={() => change(key, !food?.[key])}>{text}</button>
@@ -66,7 +52,7 @@ function FoodDayPart({ pageDay, day, label, food, onChange }: {
       ) : SCALES.map(([key, text]) => {
         const chosen = food?.[key] as number | null | undefined
         return (
-          <div key={key} className="health-scores health-food-scale" role="group" aria-label={`${text} against your usual day, ${label}`}>
+          <div key={key} className="health-scores health-food-scale" role="group" aria-label={`${text} against your usual day`}>
             <span className="health-food-label">{text}</span>
             {STEPS.map(n => (
               // on a noted day a scale not chosen counts as 0: that 0 shows, lighter. Clicking the chosen step again clears it
@@ -78,7 +64,7 @@ function FoodDayPart({ pageDay, day, label, food, onChange }: {
         )
       })}
       {error && <p className="cap-error">{error.message}</p>}
-    </div>
+    </section>
   )
 }
 
@@ -103,14 +89,11 @@ function FastField({ label, unit, value, onSave }: {
   )
 }
 
-// the line of the closed Food part: what each of the two days holds
-export function foodSummary(data: HealthView, labels: [string, string]): string {
-  const noted = (food: FoodDay | null) => {
-    if (!food) return 'not noted'
-    if (food.fast) return food.kcal === null ? 'fast day' : `fast day, ${food.kcal} kcal`
-    return food.first_food && food.last_food ? `${food.first_food}–${food.last_food}` : 'noted'
-  }
-  return `${labels[0]}: ${noted(data.food.day_before)}; ${labels[1]}: ${noted(data.food.day)}`
+// the line of the closed Food part: what the day holds
+export function foodSummary({ food }: HealthView): string {
+  if (!food) return 'not noted'
+  if (food.fast) return food.kcal === null ? 'fast day' : `fast day, ${food.kcal} kcal`
+  return food.first_food && food.last_food ? `${food.first_food}–${food.last_food}` : 'noted'
 }
 
 // the food of a day of the history in one line, for the day opened in the table; null on a day without a note

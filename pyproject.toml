@@ -1,6 +1,6 @@
 [project]
 name = 'health-dashboard'
-version = '0.2.4'
+version = '0.2.5'
 description = 'A personal health dashboard: supplements, angina, ketones and tape measurements, the Withings blood pressure and scale, the Polar H10 sessions and tests, the sleep of Sleep as Android and the Fitbit data of Google Health.'
 readme = 'README.md'
 authors = [{ name = 'Marc Dumon', email = '7793950+marcdumon@users.noreply.github.com' }]

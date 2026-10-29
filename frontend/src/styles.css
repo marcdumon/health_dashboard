@@ -771,8 +771,7 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .regime-save { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; font-size: 14px; }
 .regime-item.edited tr:first-child td:first-child { box-shadow: inset 3px 0 0 var(--notice); }
 
-/* the Food part of the Today card: the day before and the day, each with its times, marks and scales */
-.health-food-day { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--rule); }
+/* the Food part of the Today card: the times, marks and scales of the day */
 .health-food-times { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
 .health-food-times label { display: inline-flex; align-items: center; gap: 6px; }
 .health-food-scale { align-items: center; }

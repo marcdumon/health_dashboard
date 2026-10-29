@@ -134,14 +134,13 @@ def test_the_history_and_the_analysis_have_the_food_values_without_an_outlier_li
     assert analysis.analyse('food:protein', None, 30, day(9), None)['outliers'] == []
 
 
-def test_the_routes_note_the_day_or_the_day_before_and_answer_with_the_view_of_the_page(client) -> None:
-    view = client.put('/api/health/food', json={'day': '2026-10-07', 'page_day': '2026-10-08', 'first_food': '08:00'}).json()
-    assert view['day'] == '2026-10-08'
-    assert view['food']['day'] is None and view['food']['day_before']['first_food'] == '08:00'
+def test_the_routes_note_the_food_of_a_day_and_answer_with_the_view_of_that_day(client) -> None:
+    view = client.put('/api/health/food', json={'day': '2026-10-07', 'first_food': '08:00'}).json()
+    assert view['day'] == '2026-10-07' and view['food']['first_food'] == '08:00'
     view = client.put('/api/health/food', json={'day': '2026-10-08', 'protein': 1}).json()
-    assert view['food']['day']['protein'] == 1
+    assert view['day'] == '2026-10-08' and view['food']['protein'] == 1
     answer = client.put('/api/health/food', json={'day': '2026-10-08', 'protein': 5})
     assert answer.status_code == 400 and '-3 to +3' in answer.json()['detail']
     assert client.put('/api/health/food', json={'day': '2026-10-09', 'protein': 1}).status_code == 400, 'not a day to come'
-    view = client.delete('/api/health/food', params={'day': '2026-10-07', 'page_day': '2026-10-08'}).json()
-    assert view['day'] == '2026-10-08' and view['food']['day_before'] is None
+    view = client.delete('/api/health/food', params={'day': '2026-10-07'}).json()
+    assert view['day'] == '2026-10-07' and view['food'] is None

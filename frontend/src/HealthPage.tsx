@@ -30,8 +30,6 @@ import {
 
 const longDay = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-const shortDay = (day: string) =>
-  new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const shift = (day: string, days: number) => {
   const d = new Date(`${day}T12:00:00`)
   d.setDate(d.getDate() + days)
@@ -86,8 +84,6 @@ export default function HealthPage() {
 
 function TodayCard({ data, onChange, onDay }: { data: HealthView; onChange: (v: HealthView) => void; onDay: (day: string) => void }) {
   const isToday = data.day === data.today
-  const before = shift(data.day, -1)
-  const foodLabels: [string, string] = isToday ? ['Yesterday', 'Today'] : [shortDay(before), shortDay(data.day)]
   return (
     <article className="habit-card health-today">
       <div className="health-day-head">
@@ -105,8 +101,8 @@ function TodayCard({ data, onChange, onDay }: { data: HealthView; onChange: (v: 
       <Fold id="supplements" title="Supplements" summary={supplementSummary(data.supplements)}>
         <Supplements data={data} onChange={onChange} />
       </Fold>
-      <Fold id="food" title="Food" summary={foodSummary(data, foodLabels)}>
-        <Food key={`food-${data.day}`} data={data} before={before} labels={foodLabels} onChange={onChange} />
+      <Fold id="food" title="Food" summary={foodSummary(data)}>
+        <Food key={`food-${data.day}`} data={data} onChange={onChange} />
       </Fold>
       <Fold id="ketones" title="Ketones" summary={ketoneSummary(data)}>
         <Ketones data={data} onChange={onChange} />
