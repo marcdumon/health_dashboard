@@ -100,7 +100,7 @@ def test_the_day_to_day_change_takes_only_days_that_follow_each_other() -> None:
     assert sum(steps['histogram']['counts']) == 2
 
 
-def test_the_last_week_against_the_same_week_30_90_and_365_days_earlier() -> None:
+def test_the_last_week_against_the_same_week_7_30_90_and_365_days_earlier() -> None:
     def weight(day: date) -> float:
         if day > TODAY - timedelta(days=7):
             return 82
@@ -111,19 +111,23 @@ def test_the_last_week_against_the_same_week_30_90_and_365_days_earlier() -> Non
         db.executemany('INSERT INTO withings_values (grpid, type, position, value, measured_at) VALUES (?, 1, -1, ?, ?)',
                        [(n + 1, weight(day), f'{day.isoformat()}T08:00') for n, day in enumerate(days)])
     earlier = analysis.analyse('weight', 90, 30, TODAY)['earlier']
-    assert [(e['ago'], e['mean'], e['diff']) for e in earlier] == [(0, 82.0, None), (30, 80.0, 2.0), (90, 79.0, 3.0),
-                                                                   (365, 80.0, 2.0)], 'a year back, also in a period of 90 days'
-    assert (earlier[0]['from'], earlier[0]['to'], earlier[3]['from']) == ('2026-10-02', '2026-10-08', '2025-10-02')
+    assert [(e['ago'], e['mean'], e['diff']) for e in earlier] == [(0, 82.0, None), (7, 80.0, 2.0), (30, 80.0, 2.0),
+                                                                   (90, 79.0, 3.0), (365, 80.0, 2.0)], \
+        'a year back, also in a period of 90 days'
+    assert (earlier[0]['from'], earlier[0]['to'], earlier[1]['from'], earlier[1]['to'], earlier[4]['from']) == (
+        '2026-10-02', '2026-10-08', '2026-09-25', '2026-10-01', '2025-10-02')
 
 
-def test_an_earlier_week_without_a_value_is_widened_up_to_two_weeks_on_each_side() -> None:
+def test_an_earlier_week_without_a_value_is_widened_up_to_two_weeks_on_each_side_never_into_the_last_week() -> None:
     near = TODAY - timedelta(days=87)  # 3 days after the week 90 days earlier
     far = TODAY - timedelta(days=386)  # 15 days before the week 365 days earlier
-    for n, (day, value) in enumerate([(TODAY, 82), (near, 79), (far, 75)]):
+    for n, (day, value) in enumerate([(TODAY, 82), (TODAY - timedelta(days=6), 82), (near, 79), (far, 75)]):
         measure(day, n + 1, weight=value)
     earlier = analysis.analyse('weight', 30, 30, TODAY)['earlier']
-    assert [(e['ago'], e['count'], e['diff']) for e in earlier] == [(0, 1, None), (30, 0, None), (90, 1, 3.0), (365, 0, None)]
-    assert (earlier[2]['from'], earlier[2]['to']) == ((TODAY - timedelta(days=99)).isoformat(), near.isoformat())
+    assert [(e['ago'], e['count'], e['diff']) for e in earlier] == [(0, 2, None), (7, 0, None), (30, 0, None), (90, 1, 3.0),
+                                                                   (365, 0, None)]
+    assert earlier[1]['to'] == (TODAY - timedelta(days=7)).isoformat(), 'the week before is widened only into the past'
+    assert (earlier[3]['from'], earlier[3]['to']) == ((TODAY - timedelta(days=99)).isoformat(), near.isoformat())
 
 
 def test_the_relation_of_two_values_takes_the_days_with_both() -> None:

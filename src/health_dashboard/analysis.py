@@ -1,7 +1,7 @@
 """The analysis of one value of the Health history, for the large view of a chart: the day values with a rolling mean and a
 band of one standard deviation, each recording of the value at its time, the numbers of the period, a histogram, the days
 far from the days around them (a wrong measurement, to remove), the change from one day to the next, the last week against
-the same week 30, 90 and 365 days earlier (widened when it has no value), each year by month, and the relation with a
+the same week 7, 30, 90 and 365 days earlier (widened when it has no value), each year by month, and the relation with a
 second value. The numbers use the day averages of the history; a removed measurement is not in it."""
 
 import math
@@ -37,7 +37,7 @@ MIN_AROUND = 4
 MAX_OUTLIERS = 50
 # the last week with a value against the same week this many days earlier; these reach back past a short period
 WEEK = 7
-EARLIER = (30, 90, 365)
+EARLIER = (7, 30, 90, 365)
 # an earlier week without a value is widened by a day on each side until it has one, up to this many days on each side
 WIDEN = 14
 # how far back the earlier weeks reach
@@ -157,9 +157,9 @@ def _steps(days: list[date], values: list[float]) -> dict | None:
 
 
 def _earlier(found: list[tuple[date, float]]) -> list[dict]:
-    """The mean of the last 7 days up to the last value, and of the same 7 days 30, 90 and 365 days earlier, with how much
-    the last week is above (+) or below (-) each. An earlier week without a value is widened (WIDEN), so that a value
-    measured now and then still has a difference; its from and to say which days it took."""
+    """The mean of the last 7 days up to the last value, and of the same 7 days 7, 30, 90 and 365 days earlier, with how
+    much the last week is above (+) or below (-) each. An earlier week without a value is widened (WIDEN), never into the
+    last week, so that a value measured now and then still has a difference; its from and to say which days it took."""
     if not found:
         return []
     end = found[-1][0]
@@ -168,7 +168,7 @@ def _earlier(found: list[tuple[date, float]]) -> list[dict]:
         to = end - timedelta(days=ago)
         start = to - timedelta(days=WEEK - 1)
         for wider in range(WIDEN + 1):
-            first, last = start - timedelta(days=wider), to + timedelta(days=wider)
+            first, last = start - timedelta(days=wider), to + timedelta(days=min(wider, max(ago - WEEK, 0)))
             if values := [v for d, v in found if first <= d <= last]:
                 break
         return {'ago': ago, 'from': first.isoformat(), 'to': last.isoformat(), 'count': len(values),

@@ -325,7 +325,9 @@ function Steps({ data, unit, decimals }: Draw) {
 
 const shortDate = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-const AGO: Record<number, string> = { 0: 'Latest 7 days', 30: '30 days earlier', 90: '90 days earlier', 365: '365 days earlier' }
+const AGO: Record<number, string> = {
+  0: 'Latest 7 days', 7: '7 days earlier', 30: '30 days earlier', 90: '90 days earlier', 365: '365 days earlier',
+}
 
 function Earlier({ data, unit, decimals }: Draw) {
   return (
