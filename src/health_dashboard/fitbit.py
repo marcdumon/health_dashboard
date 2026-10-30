@@ -3,9 +3,9 @@ day from the first day (the [fitbit] part of health_dashboard.toml) into data/go
 type and local day; google_api fetches a day again until two days after it ended, because the band syncs late. A page read
 never downloads.
 
-The values of a day come from its files, and are computed again only when one of its files changed (the newest file time
-is kept with them in fitbit_days). The exercises are one list for all days (exercise/all.json): each download replaces
-them, and an exercise belongs to the local day on which it starts.
+The values of a day come from its files, and are computed again only when one of its files changed or the way to compute
+them changed (the newest file time and VALUES_VERSION are kept with them in fitbit_days). The exercises are one list for
+all days (exercise/all.json): each download replaces them, and an exercise belongs to the local day on which it starts.
 
 Only the band's own values count: the phone (MobileTrack) also counts steps and active minutes, and the two would count
 the same walk twice. A sleep belongs to the day on which it ends (its wake day), as the Sleep as Android sleeps, and the
@@ -33,13 +33,15 @@ NOT_SET = ('Set first_day in the [fitbit] part of health_dashboard.toml to the f
 NO_TOKEN = 'There is no Google Health login yet. Press Log in to Google Health, choose your Google account and tick every box.'
 ZONES = ('LIGHT', 'MODERATE', 'VIGOROUS', 'PEAK')
 LEVELS = ('LIGHT', 'MODERATE', 'VIGOROUS')
+# the way the values of a day are computed: a higher number computes every day again
+VALUES_VERSION = 2
 # the history keys of the values of a day, with their decimals
 KEYS = {
     'fitbit:resting_hr': 0, 'fitbit:mean_hr': 0, 'fitbit:max_hr': 0, 'fitbit:hrv': 1, 'fitbit:hrv_deep': 1,
     'fitbit:non_rem_hr': 0,
     'fitbit:spo2': 1, 'fitbit:spo2_low': 1, 'fitbit:spo2_high': 1, 'fitbit:breathing': 1, 'fitbit:breathing_deep': 1,
     'fitbit:breathing_light': 1, 'fitbit:breathing_rem': 1, 'fitbit:skin_temp': 2,
-    'fitbit:asleep': 2, 'fitbit:awake': 0, 'fitbit:deep': 0, 'fitbit:light': 0, 'fitbit:rem': 0, 'fitbit:fall_asleep': 0,
+    'fitbit:asleep': 2, 'fitbit:awake': 0, 'fitbit:deep': 0, 'fitbit:light': 0, 'fitbit:rem': 0, 'fitbit:to_deep_sleep': 0,
     'fitbit:awakenings': 0,
     'fitbit:steps': 0, 'fitbit:distance': 2, 'fitbit:floors': 0, 'fitbit:kcal': 0, 'fitbit:active_kcal': 0, 'fitbit:azm': 0,
     **{f'fitbit:active_{level.lower()}': 0 for level in LEVELS}, 'fitbit:sedentary': 1,
@@ -84,6 +86,18 @@ def _seconds(start: str, end: str) -> float:
     return (datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds()
 
 
+def _to_deep_sleep(band: list[dict]) -> float | None:
+    """The minutes from the start of the longest sleep to its first deep sleep; None without deep sleep. It is close to the
+    time to sound sleep of the Google Health app, which the API does not give (its minutesToFallAsleep is always 0)."""
+    sleeps = {(r['start'], r['end']) for r in band if r['type'] == 'sleep' and r['start'] and r['end']}
+    if not sleeps:
+        return None
+    start, end = max(sleeps, key=lambda period: _seconds(*period))
+    stages = _items([r for r in band if r['type'] == 'sleep' and (r['start'], r['end']) == (start, end)], 'sleep', 'stages')
+    deep = [datetime.fromisoformat(s['startTime']) for s in stages if s.get('type') == 'DEEP' and 'startTime' in s]
+    return (min(deep) - datetime.fromisoformat(start)).total_seconds() / 60 if deep else None
+
+
 def values(rows: list[dict]) -> dict[str, float]:
     """The values of a day from the rows of its files, under their history keys (KEYS); the phone's rows are left out."""
     band = [r for r in rows if r['device'] != PHONE]
@@ -123,7 +137,7 @@ def values(rows: list[dict]) -> dict[str, float]:
         'fitbit:asleep': sum(slept) / 60 if slept else None,
         'fitbit:awake': total('sleep', 'summary.minutesAwake'),
         **{f'fitbit:{stage.lower()}': items_total(stages, 'type', stage, 'minutes') for stage in ('DEEP', 'LIGHT', 'REM')},
-        'fitbit:fall_asleep': total('sleep', 'summary.minutesToFallAsleep'),
+        'fitbit:to_deep_sleep': _to_deep_sleep(band),
         'fitbit:awakenings': len(_items(band, 'sleep', 'shortAwakenings')) if slept else None,
         'fitbit:steps': total('steps', 'count'),
         'fitbit:distance': distance / 1_000_000 if distance is not None else None,
@@ -169,7 +183,7 @@ def _compute(first: date, last: date) -> int:
     day = first
     while day <= last:
         files = list(FOLDER.glob(f'*/{day}.json'))
-        if files and stamps.get(day.isoformat()) != (stamp := str(max(f.stat().st_mtime_ns for f in files))):
+        if files and stamps.get(day.isoformat()) != (stamp := f'{VALUES_VERSION}:{max(f.stat().st_mtime_ns for f in files)}'):
             changed.append((day.isoformat(), stamp, json.dumps(values(health.rows(FOLDER, day)))))
         day += timedelta(days=1)
     with ledger.connect(write=True) as db:

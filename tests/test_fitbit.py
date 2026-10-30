@@ -50,12 +50,14 @@ def rollup(body: str, start: str, end: str, **values: object) -> dict:
     return {'startTime': start, 'endTime': end, body: values}
 
 
-def night(start: str, end: str, asleep: int, awake: int, stages: list[tuple[str, int]], short: int = 0) -> dict:
-    """A sleep with its summary, one stage period and some short awakenings."""
+def night(start: str, end: str, asleep: int, awake: int, stages: list[tuple[str, int]], short: int = 0,
+          deep_at: str | None = None) -> dict:
+    """A sleep with its summary, a light stage period (up to `deep_at`, then a deep one) and some short awakenings."""
+    periods = [(start, deep_at, 'LIGHT'), (deep_at, end, 'DEEP')] if deep_at else [(start, end, 'LIGHT')]
     return {'dataSource': DERIVED, 'sleep': {
         'interval': {'startTime': start, 'endTime': end}, 'type': 'STAGES',
-        'stages': [{'startTime': start, 'endTime': end, 'type': 'LIGHT'}],
-        'summary': {'minutesAsleep': str(asleep), 'minutesAwake': str(awake), 'minutesToFallAsleep': '4',
+        'stages': [{'startTime': a, 'endTime': b, 'type': kind} for a, b, kind in periods],
+        'summary': {'minutesAsleep': str(asleep), 'minutesAwake': str(awake), 'minutesToFallAsleep': '0',
                     'stagesSummary': [{'type': kind, 'minutes': str(m), 'count': '3'} for kind, m in stages]},
         'shortAwakenings': [{'startTime': start, 'endTime': start, 'type': 'LIGHT'}] * short}}
 
@@ -79,7 +81,8 @@ def full_day(folder: Path) -> None:
     save(folder, 'daily-sleep-temperature-derivations', DAY, [daily(
         'dailySleepTemperatureDerivations', nightlyTemperatureCelsius=33.19, baselineTemperatureCelsius='NaN')])
     save(folder, 'sleep', DAY, [night('2026-10-23T23:01:00Z', '2026-10-24T08:31:00Z', 542, 28,
-                                      [('AWAKE', 28), ('LIGHT', 299), ('DEEP', 89), ('REM', 154)], short=2)])
+                                      [('AWAKE', 28), ('LIGHT', 299), ('DEEP', 89), ('REM', 154)], short=2,
+                                      deep_at='2026-10-23T23:16:00Z')])
     save(folder, 'steps', DAY, [interval('steps', '2026-10-24T09:16:00Z', '2026-10-24T09:17:00Z', count='100'),
                                 interval('steps', '2026-10-24T10:16:00Z', '2026-10-24T10:17:00Z', count='20'),
                                 interval('steps', '2026-10-24T09:16:00Z', '2026-10-24T09:17:00Z', source=PHONE, count='70')])
@@ -161,7 +164,7 @@ def test_the_values_of_a_day_come_from_its_files_and_only_from_the_band(folder: 
         'fitbit:non_rem_hr': 61, 'fitbit:spo2': 95.6, 'fitbit:spo2_low': 93.5, 'fitbit:spo2_high': 97.8,
         'fitbit:breathing': 13.2, 'fitbit:breathing_deep': 13.4, 'fitbit:breathing_light': 13.6, 'fitbit:breathing_rem': 10.2,
         'fitbit:skin_temp': 33.19, 'fitbit:asleep': 9.03, 'fitbit:awake': 28, 'fitbit:deep': 89, 'fitbit:light': 299,
-        'fitbit:rem': 154, 'fitbit:fall_asleep': 4, 'fitbit:awakenings': 2, 'fitbit:steps': 120, 'fitbit:distance': 0.01,
+        'fitbit:rem': 154, 'fitbit:to_deep_sleep': 15, 'fitbit:awakenings': 2, 'fitbit:steps': 120, 'fitbit:distance': 0.01,
         'fitbit:kcal': 4, 'fitbit:active_kcal': 2, 'fitbit:azm': 1, 'fitbit:active_light': 1, 'fitbit:active_moderate': 2,
         'fitbit:sedentary': 0.8, 'fitbit:kcal_light': 1, 'fitbit:kcal_moderate': 6}
 
@@ -172,7 +175,15 @@ def test_a_day_without_data_has_no_values_and_two_sleeps_add_up(folder: Path) ->
                                 night('2026-10-24T12:00:00Z', '2026-10-24T13:00:00Z', 50, 5, [('DEEP', 0)], short=1)])
     values = fitbit.values(fitbit.health.rows(folder, date(2026, 10, 24)))
     assert (values['fitbit:asleep'], values['fitbit:awake'], values['fitbit:deep'], values['fitbit:awakenings']) == (5.83, 25, 60, 2)
-    assert 'fitbit:rem' not in values
+    assert 'fitbit:rem' not in values and 'fitbit:to_deep_sleep' not in values
+
+
+def test_the_time_to_deep_sleep_is_that_of_the_longest_sleep(folder: Path) -> None:
+    save(folder, 'sleep', DAY, [night('2026-10-24T12:00:00Z', '2026-10-24T13:00:00Z', 50, 5, [('DEEP', 10)],
+                                      deep_at='2026-10-24T12:05:00Z'),
+                                night('2026-10-23T22:32:00Z', '2026-10-24T08:07:00Z', 543, 32, [('DEEP', 60)],
+                                      deep_at='2026-10-23T23:41:00Z')])
+    assert fitbit.values(fitbit.health.rows(folder, date(2026, 10, 24)))['fitbit:to_deep_sleep'] == 69
 
 
 def test_a_download_gets_every_day_from_the_first_and_computes_only_the_days_whose_files_changed(
@@ -194,6 +205,8 @@ def test_a_download_gets_every_day_from_the_first_and_computes_only_the_days_who
     os.utime(path, ns=(path.stat().st_mtime_ns + 10**9, path.stat().st_mtime_ns + 10**9))
     assert fitbit.download(date(2026, 10, 24), TZ)['days'] == 1
     assert fitbit.day_values('2026-10-23', '2026-10-23')['2026-10-23']['fitbit:steps'] == 9
+    monkeypatch.setattr(fitbit, 'VALUES_VERSION', fitbit.VALUES_VERSION + 1)
+    assert fitbit.download(date(2026, 10, 24), TZ)['days'] == 2, 'a new way to compute computes every day again'
 
 
 def test_the_exercises_belong_to_the_local_day_they_start(folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -233,6 +246,7 @@ def test_the_charts_of_a_day_have_the_hr_per_minute_and_the_sleep_that_touches_i
     assert len(detail['hrv']) == 1
     assert [s[1] for s in detail['steps']] == [100, 20]
     assert [(s['start'], s['type']) for s in detail['stages']] == [('2026-10-23T23:01:00Z', 'LIGHT'),
+                                                                  ('2026-10-23T23:16:00Z', 'DEEP'),
                                                                   ('2026-10-24T21:30:00Z', 'LIGHT')]
     assert detail['exercises'] == []
 

@@ -87,7 +87,7 @@ export const FITBIT_GROUPS: [string, Value[]][] = [
   ['Sleep', [
     ['fitbit:asleep', 'Time asleep', 'h', 1], ['fitbit:awake', 'Time awake', 'min', 0], ['fitbit:deep', 'Deep sleep', 'min', 0],
     ['fitbit:light', 'Light sleep', 'min', 0], ['fitbit:rem', 'REM sleep', 'min', 0],
-    ['fitbit:fall_asleep', 'Time to fall asleep', 'min', 0], ['fitbit:awakenings', 'Short awakenings', '', 0]]],
+    ['fitbit:to_deep_sleep', 'Time to deep sleep', 'min', 0], ['fitbit:awakenings', 'Short awakenings', '', 0]]],
   ['Activity', [
     ['fitbit:steps', 'Steps', '', 0], ['fitbit:distance', 'Distance', 'km', 2], ['fitbit:floors', 'Floors', '', 0],
     ['fitbit:kcal', 'Total energy expenditure', 'kcal', 0], ['fitbit:active_kcal', 'Active energy expenditure', 'kcal', 0],
