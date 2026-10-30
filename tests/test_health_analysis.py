@@ -116,6 +116,16 @@ def test_the_last_week_against_the_same_week_30_90_and_365_days_earlier() -> Non
     assert (earlier[0]['from'], earlier[0]['to'], earlier[3]['from']) == ('2026-10-02', '2026-10-08', '2025-10-02')
 
 
+def test_an_earlier_week_without_a_value_is_widened_up_to_two_weeks_on_each_side() -> None:
+    near = TODAY - timedelta(days=87)  # 3 days after the week 90 days earlier
+    far = TODAY - timedelta(days=386)  # 15 days before the week 365 days earlier
+    for n, (day, value) in enumerate([(TODAY, 82), (near, 79), (far, 75)]):
+        measure(day, n + 1, weight=value)
+    earlier = analysis.analyse('weight', 30, 30, TODAY)['earlier']
+    assert [(e['ago'], e['count'], e['diff']) for e in earlier] == [(0, 1, None), (30, 0, None), (90, 1, 3.0), (365, 0, None)]
+    assert (earlier[2]['from'], earlier[2]['to']) == ((TODAY - timedelta(days=99)).isoformat(), near.isoformat())
+
+
 def test_the_relation_of_two_values_takes_the_days_with_both() -> None:
     for n in range(10):
         measure(TODAY - timedelta(days=n), n + 1, weight=80 + n, fat_ratio=20 + 2 * n)

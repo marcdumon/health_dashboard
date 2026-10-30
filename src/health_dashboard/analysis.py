@@ -1,8 +1,8 @@
 """The analysis of one value of the Health history, for the large view of a chart: the day values with a rolling mean and a
 band of one standard deviation, each recording of the value at its time, the numbers of the period, a histogram, the days
 far from the days around them (a wrong measurement, to remove), the change from one day to the next, the last week against
-the same week 30, 90 and 365 days earlier, each year by month, and the relation with a second value. The numbers use the
-day averages of the history; a removed measurement is not in it."""
+the same week 30, 90 and 365 days earlier (widened when it has no value), each year by month, and the relation with a
+second value. The numbers use the day averages of the history; a removed measurement is not in it."""
 
 import math
 import statistics
@@ -38,6 +38,10 @@ MAX_OUTLIERS = 50
 # the last week with a value against the same week this many days earlier; these reach back past a short period
 WEEK = 7
 EARLIER = (30, 90, 365)
+# an earlier week without a value is widened by a day on each side until it has one, up to this many days on each side
+WIDEN = 14
+# how far back the earlier weeks reach
+REACH = max(EARLIER) + WEEK + WIDEN
 # the longest delay the relation checks, in days
 MAX_LAG = 30
 
@@ -154,7 +158,8 @@ def _steps(days: list[date], values: list[float]) -> dict | None:
 
 def _earlier(found: list[tuple[date, float]]) -> list[dict]:
     """The mean of the last 7 days up to the last value, and of the same 7 days 30, 90 and 365 days earlier, with how much
-    the last week is above (+) or below (-) each."""
+    the last week is above (+) or below (-) each. An earlier week without a value is widened (WIDEN), so that a value
+    measured now and then still has a difference; its from and to say which days it took."""
     if not found:
         return []
     end = found[-1][0]
@@ -162,8 +167,11 @@ def _earlier(found: list[tuple[date, float]]) -> list[dict]:
     def week(ago: int) -> dict:
         to = end - timedelta(days=ago)
         start = to - timedelta(days=WEEK - 1)
-        values = [v for d, v in found if start <= d <= to]
-        return {'ago': ago, 'from': start.isoformat(), 'to': to.isoformat(), 'count': len(values),
+        for wider in range(WIDEN + 1):
+            first, last = start - timedelta(days=wider), to + timedelta(days=wider)
+            if values := [v for d, v in found if first <= d <= last]:
+                break
+        return {'ago': ago, 'from': first.isoformat(), 'to': last.isoformat(), 'count': len(values),
                 'mean': round(statistics.fmean(values), 4) if values else None, 'diff': None}
 
     now = week(0)
@@ -192,10 +200,10 @@ def analyse(key: str, days: int | None, window: int, today: date, activity: int 
     value at their time (history.chart_points), for the chart; a value of the day (angina, a supplement, the tape) has none.
     The numbers use the day values (`per` 'day'), but a value of the Polar H10 sessions has none: its numbers use each
     session (`per` 'session'; with `activity`, only the sessions of that activity), without the change from day to day."""
-    first, rows = _rows(days, today, max(EARLIER) + WEEK)
+    first, rows = _rows(days, today, REACH)
     per_session = key in polar_store.SESSION_KEYS
     if per_session:
-        since = min(first, today - timedelta(days=max(EARLIER) + WEEK - 1)).isoformat()
+        since = min(first, today - timedelta(days=REACH - 1)).isoformat()
         every = [(date.fromisoformat(p['day']), float(p[key])) for p in polar_store.session_points(since, today.isoformat(), activity)
                  if key in p]
     else:

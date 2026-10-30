@@ -700,8 +700,8 @@ function AnalysisDialog({ spec, onClose }: { spec: AnalysisSpec; onClose: () => 
             <Numbers {...draw} />
           </section>
           <section className="analysis-card">
-            <h3>Comparison with earlier periods <span className="muted">7-day means; uses all data, also outside the chosen
-              period</span></h3>
+            <h3>Comparison with earlier periods <span className="muted">7-day means, an earlier week without a value widened up
+              to 2 weeks on each side; uses all data, also outside the chosen period</span></h3>
             <Earlier {...draw} />
           </section>
           <section className="analysis-card">
