@@ -1,5 +1,5 @@
-"""Shared test fixtures: every test has its own database and folders, and no test reaches Withings, Google Health, the
-Polar logger, the phone, the Sleep as Android backup or the user's own values."""
+"""Shared test fixtures: every test has its own database and folders, and no test reaches Withings, Google Health, Home
+Assistant, the Polar logger, the phone, the Sleep as Android backup or the user's own values."""
 
 from pathlib import Path
 
@@ -24,6 +24,14 @@ def no_real_withings_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     from health_dashboard import withings
 
     monkeypatch.setattr(withings, '_env', lambda name: '')
+
+
+@pytest.fixture(autouse=True)
+def no_real_home_assistant_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The user's Home Assistant token in .env never reaches a test; tests that need a token set their own."""
+    from health_dashboard import room
+
+    monkeypatch.setattr(room, '_token', lambda: '')
 
 
 @pytest.fixture(autouse=True)

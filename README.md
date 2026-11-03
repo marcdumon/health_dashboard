@@ -9,6 +9,7 @@ A personal health dashboard that runs on your own PC, in the browser. All data s
 | Polar H10 | sessions, HR zones, HRV test, HR recovery test, stairs test, training load, net energy expenditure | the Polar H10 logger on the PC and the Polar Sensor Logger app on the phone, on Import |
 | Sleep | sleep times, stages and cycles | the Sleep as Android backup in Dropbox, on Import sleep |
 | Fitbit | HR, HRV, SpO2, breathing rate, skin temperature, sleep, activity and exercises | the Google Health API, on Download Fitbit |
+| Room temperature | the temperature of the room at each blood pressure reading | Home Assistant, on Download room temperature |
 | History | a chart of every value by day, the large view of each chart and the relation of two values | all of the above |
 
 A page read never downloads or changes anything: only a button does.
@@ -59,10 +60,12 @@ uv run health-dashboard                # http://127.0.0.1:8766
 - Fitbit: the Google Health API needs an OAuth client of type Desktop at `secrets/client_secret.json`; Log in to Google
   Health on the Fitbit card keeps the token in `secrets/google_health_token.json`. The steps are in
   [docs/google-health-setup.md](docs/google-health-setup.md).
+- Room temperature: set `url` in the `[home_assistant]` part of `health_dashboard.toml`, put a long-lived access token of your
+  Home Assistant profile in `.env` as `HA_TOKEN`, and choose the sensor on the Room temperature card.
 - `data/`, `secrets/`, `.env`, `health_dashboard.toml` and `person.toml` are not in git.
 
 ## Tests
 
 ```bash
-uv run pytest      # no network: fakes stand in for Withings, Google Health, the Polar logger and the phone
+uv run pytest      # no network: fakes stand in for Withings, Google Health, Home Assistant, the Polar logger and the phone
 ```

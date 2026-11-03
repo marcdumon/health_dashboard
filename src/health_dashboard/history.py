@@ -3,11 +3,12 @@ log), the angina score, the highest Ketostix reading and how many, the day's ave
 day's average of every value of the scale, the tape measurements, the values of the HRV tests (with their band keys),
 the HR recovery tests and the stairs tests, the sleep of the day (Sleep as Android: the sleeps that end on it, added
 up), the food of the day (food: the scales, the marks, the times and the fast days), the Fitbit values of the day
-(fitbit), and the values derived from the Withings readings (trends: the trend of each body composition value and the
-home blood pressure), and the training load (polar_load: totals of a period, not values of a session); a value of a body
-part is named kind:part ('muscle_mass:left_arm', 'tape:waist'). The values of the Polar H10 sessions have no value of a
-day (a day mixes activities): each session is a point (chart_points), as is each recording. A day starts at
-store.DAY_START_HOUR, for the Withings readings and the sessions too."""
+(fitbit), the room temperature at the blood pressure readings (room), and the values derived from the Withings readings
+(trends: the trend of each body composition value and the home blood pressure), and the training load (polar_load:
+totals of a period, not values of a session); a value of a body part is named kind:part ('muscle_mass:left_arm',
+'tape:waist'). The values of the Polar H10 sessions have no value of a day (a day mixes activities): each session is a
+point (chart_points), as is each recording. A day starts at store.DAY_START_HOUR, for the Withings readings and the
+sessions too."""
 
 from datetime import date, datetime, timedelta
 
@@ -20,6 +21,7 @@ from health_dashboard import (
     polar_recovery,
     polar_stairs,
     polar_store,
+    room,
     sleep,
     store,
     supplements,
@@ -82,7 +84,7 @@ def days(count: int, today: date) -> list[dict]:
     for day, values in polar_hrv.day_values(first.isoformat(), today.isoformat()).items():
         if day in rows:
             rows[day] |= values
-    for source in (polar_recovery, polar_stairs, sleep, food, fitbit, trends, polar_load, supplements):
+    for source in (polar_recovery, polar_stairs, sleep, food, fitbit, room, trends, polar_load, supplements):
         for day, values in source.day_values(first.isoformat(), today.isoformat()).items():
             if day in rows:
                 rows[day] |= values
@@ -116,12 +118,15 @@ def chart_points(first: date, last: date, activity: int | None = None) -> list[d
     stored, or UTC with its offset), its day and its values under their history keys; the points of each kind are in time
     order."""
     points = []
+    temperatures = room.at_readings(first.isoformat(), last.isoformat())
     for group in _groups(first):
         if group['day'] > last.isoformat():
             continue
         names = {withings.TYPES[kind]: value for kind, _, value in group['values']}
         if 'systolic' in names:
             values = {name: names[name] for name in PRESSURE if name in names}
+            if group['at'] in temperatures:
+                values[room.KEY] = temperatures[group['at']]
         else:
             values = {_scale_key(kind, position): value for kind, position, value in group['values']}
             if (ratio := _muscle_ratio(group)) is not None:

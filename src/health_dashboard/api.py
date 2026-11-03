@@ -32,6 +32,7 @@ from health_dashboard import (
     polar_recovery,
     polar_stairs,
     polar_store,
+    room,
     sleep_summary,
     withings,
 )
@@ -108,7 +109,7 @@ def _health_view(day: date) -> dict:
     route), the angina score, the Ketostix readings, the tape measurements with the last ones before the day, the latest
     Withings values up to the end of the day, the link, the Polar H10 import with the last sessions up to the day, and the
     sleep of the day with a look at the Sleep as Android backup, the Fitbit values of the day with a look at the token,
-    and the food of the day."""
+    the room temperature at the blood pressure readings of the day, and the food of the day."""
     now = _health_now()
     return {'day': day.isoformat(), 'today': health_store.health_day(now).isoformat(), 'now': now.strftime('%H:%M'),
             'supplements': health_supplements.day_view(day),
@@ -121,6 +122,7 @@ def _health_view(day: date) -> dict:
                 'last_stairs': polar_stairs.last_test(day.isoformat())},
             'sleep': health_sleep.status(now) | {'day': health_sleep.day_card(day.isoformat())},
             'fitbit': health_fitbit.status() | {'day': health_fitbit.day_card(day.isoformat())},
+            'room': room.card(day.isoformat()),
             'food': health_food.day(day)}
 
 
@@ -195,6 +197,14 @@ class HealthTime(BaseModel):
     """A new clock time."""
 
     taken_at: str
+
+
+class RoomSensor(BaseModel):
+    """The temperature sensor of the room: its entity id and name in Home Assistant, and the day of the page."""
+
+    day: str | None = None
+    entity: str = Field(min_length=1)
+    name: str = ''
 
 
 class HealthTape(BaseModel):
@@ -587,6 +597,33 @@ def fitbit_download(day: str | None = None) -> dict:
     except health_fitbit.FitbitError as error:
         raise HTTPException(409, str(error)) from error
     return _health_view(_health_day(day))
+
+
+@app.post('/api/health/room/download')
+def room_download(day: str | None = None) -> dict:
+    """Get the room temperature from Home Assistant into the database. Settings or a sensor that are not there, a refused
+    token or a Home Assistant that does not answer give 409 with what to do."""
+    try:
+        room.download(_health_now())
+    except room.RoomError as error:
+        raise HTTPException(409, str(error)) from error
+    return _health_view(_health_day(day))
+
+
+@app.get('/api/health/room/sensors')
+def room_sensors() -> dict:
+    """The temperature sensors of Home Assistant, asked when the user presses the button to choose one."""
+    try:
+        return {'sensors': room.sensors()}
+    except room.RoomError as error:
+        raise HTTPException(409, str(error)) from error
+
+
+@app.put('/api/health/room/sensor')
+def room_sensor(given: RoomSensor) -> dict:
+    """Choose the temperature sensor of the room; the stored temperatures stay."""
+    room.set_sensor(given.entity, given.name)
+    return _health_view(_health_day(given.day))
 
 
 @app.post('/api/health/fitbit/login')

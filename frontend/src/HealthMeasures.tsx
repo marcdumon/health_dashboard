@@ -10,7 +10,10 @@ export const whole = (v: number | null) => (v === null ? '—' : String(Math.rou
 export function summary(m: HealthMeasurement): string {
   const v = m.values
   const of = (key: string) => whole(v[key] ?? null)
-  if (m.kind === 'pressure') return `blood pressure ${of('systolic')}/${of('diastolic')} mmHg, pulse ${of('pulse')}`
+  if (m.kind === 'pressure') {
+    const room = typeof v.room_temperature === 'number' ? `, room ${v.room_temperature.toFixed(1)} °C` : ''
+    return `blood pressure ${of('systolic')}/${of('diastolic')} mmHg, pulse ${of('pulse')}${room}`
+  }
   const parts: [string, string, number][] = [['weight', 'kg', 1], ['fat_ratio', '% fat', 1], ['muscle_mass', 'kg muscle', 1],
     ['visceral_fat', 'visceral fat', 1], ['hydration', 'kg water', 1], ['heart_rate', 'bpm', 0]]
   const said = parts.filter(([key]) => typeof v[key] === 'number').map(([key, unit, decimals]) => (

@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, Fragment, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 
 import {
-  addKetoneReading, fetchWithings, getHealth, getHealthHistory, getPolarActivities, removeKetoneReading, setAngina, setKetoneTime,
-  setTape, showMeasurement, type HealthDayRow, type HealthMeasurement, type HealthView, type KetostixLevel, type PolarStatus,
+  addKetoneReading, downloadRoomTemperature, fetchWithings, getHealth, getHealthHistory, getPolarActivities, getRoomSensors,
+  removeKetoneReading, setAngina, setKetoneTime, setRoomSensor, setTape, showMeasurement, type HealthDayRow, type HealthMeasurement, type HealthView, type KetostixLevel, type PolarStatus,
   type RecordingPoint, type WithingsStatus, type WithingsValue,
 } from './api'
 import { EnlargeButton, MoreChoices } from './HealthAnalysis'
@@ -21,7 +21,7 @@ import { supplementSummary, Supplements } from './HealthSupplements'
 import { TapeGuideButton } from './HealthTapeGuide'
 import { clock, TimeField } from './HealthTime'
 import {
-  COMPOSITION, FITBIT, FITBIT_GROUPS, FOOD, H10, HRV, HRV_BETTER, inText, RECOVERY, SLEEP, STAIRS, TAPE, TAPE_PAIRS, VESSELS,
+  COMPOSITION, FITBIT, FITBIT_GROUPS, FOOD, H10, HRV, HRV_BETTER, inText, RECOVERY, ROOM, SLEEP, STAIRS, TAPE, TAPE_PAIRS, VESSELS,
   type Value,
 } from './healthValues'
 
@@ -74,6 +74,7 @@ export default function HealthPage() {
           <PolarCard data={data} onChange={keep} />
           <SleepCard data={data} onChange={keep} />
           <FitbitCard data={data} onChange={keep} />
+          <RoomCard data={data} onChange={keep} />
         </div>
         <WithingsCard data={data} onChange={keep} />
       </div>
@@ -320,6 +321,57 @@ function WithingsCard({ data, onChange }: { data: HealthView; onChange: (v: Heal
       )}
       <WithingsStatusLine status={status} fetching={fetchNow.isPending} onFetch={() => fetchNow.mutate()} />
       {fetchNow.isError && <p className="cap-error">{fetchNow.error.message}</p>}
+    </article>
+  )
+}
+
+// the room temperature at the blood pressure readings of the page's day, from the database; only the buttons ask Home Assistant.
+// Another sensor counts from the next download on
+function RoomCard({ data, onChange }: { data: HealthView; onChange: (v: HealthView) => void }) {
+  const status = data.room
+  const run = useMutation({ mutationFn: () => downloadRoomTemperature(data.day), onSuccess: onChange })
+  const list = useMutation({ mutationFn: getRoomSensors })
+  const choose = useMutation({
+    mutationFn: (entity: string) => setRoomSensor(data.day, entity, list.data?.sensors.find(s => s.entity === entity)?.name ?? entity),
+    onSuccess: view => { list.reset(); run.reset(); onChange(view) },
+  })
+  return (
+    <article className="habit-card health-latest">
+      <h2>Room temperature{data.day !== data.today && <span className="muted"> {longDay(data.day)}</span>}</h2>
+      {status.day ? (
+        <div className="health-reading">
+          <span className="health-label">At the blood pressure readings</span>
+          <span className="health-value">{status.day.celsius.toFixed(1)} <small>°C</small></span>
+          <span className="muted">{status.day.readings} {status.day.readings === 1 ? 'reading' : 'readings'}</span>
+        </div>
+      ) : status.downloaded_at && <p className="muted">No blood pressure reading with a room temperature on this day.</p>}
+      <div className="health-status">
+        <span className="muted">
+          {[status.sensor?.name, status.downloaded_at && `downloaded ${when(status.downloaded_at)}`].filter(Boolean).join(', ')}
+        </span>
+        {status.configured && status.sensor && (
+          <button type="button" className="quiet" disabled={run.isPending} onClick={() => run.mutate()}>
+            {run.isPending ? 'Downloading…' : 'Download room temperature'}
+          </button>
+        )}
+        {status.configured && !list.data && (
+          <button type="button" className="quiet" disabled={list.isPending} onClick={() => list.mutate()}>
+            {list.isPending ? 'Asking Home Assistant…' : status.sensor ? 'Change sensor' : 'Choose sensor'}
+          </button>
+        )}
+        {list.data && (
+          <label className="polar-filter">Sensor
+            <select value={status.sensor?.entity ?? ''} disabled={choose.isPending} onChange={e => choose.mutate(e.target.value)}>
+              {!status.sensor && <option value="" disabled>Choose…</option>}
+              {list.data.sensors.map(s => (
+                <option key={s.entity} value={s.entity}>{s.name}{s.celsius !== null && `, now ${s.celsius.toFixed(1)} °C`}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {status.message && <p className="cap-error">{status.message}</p>}
+        {[run, list, choose].map((m, n) => m.isError && <p key={n} className="cap-error">{m.error?.message}</p>)}
+      </div>
     </article>
   )
 }
@@ -577,6 +629,9 @@ function HistoryCard({ fetched, ketostix, polar }: { fetched: string | null; ket
                  lines={withMean('pulse', 'Pulse', 0)} />
           <Chart rows={rows} title="Heart rate (scale)" unit="bpm" note={`standing, ${MEAN_NOTE}`} decimals={0}
                  lines={withMean('heart_rate', 'Heart rate', 0)} />
+          {ROOM.map(([key, label, unit, decimals]) => (
+            <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals} lines={one(key, label)} />
+          ))}
           {VESSELS.map(([key, label, unit, decimals]) => (
             <Chart key={key} rows={rows} title={label} unit={unit} decimals={decimals} note={MEAN_NOTE}
                    lines={withMean(key, label, decimals)} />

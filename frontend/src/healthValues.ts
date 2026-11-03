@@ -105,13 +105,15 @@ export const LOAD: Value[] = [
   ['load:trimp', 'Training load of the day (TRIMP)', '', 0], ['load:acute', 'Training load, 7 days (TRIMP)', '', 0],
   ['activity:moderate', 'Moderate activity', 'min', 0], ['activity:vigorous', 'Vigorous activity', 'min', 0],
 ]
-// the values the large view of a chart can set against its own value, by day: blood pressure, pulse, the vessels,
+// the temperature of the room at the blood pressure readings (Home Assistant)
+export const ROOM: Value[] = [['room_temperature', 'Room temperature at the blood pressure readings', '°C', 1]]
+// the values the large view of a chart can set against its own value, by day: blood pressure, pulse, the room temperature, the vessels,
 // the body composition, the user's own angina score and ketones, the tape measure, the HRV, HR recovery
 // and stairs tests, the sleep, the food, the training load and the Fitbit values. Not the values of the sessions: a day mixes activities, so they have
 // no value of a day
 export const RELATION_CHOICES: Value[] = [
   ['systolic', 'Systolic blood pressure', 'mmHg', 0], ['diastolic', 'Diastolic blood pressure', 'mmHg', 0],
-  ['pulse', 'Pulse (blood pressure monitor)', 'bpm', 0], ['heart_rate', 'Heart rate (scale)', 'bpm', 0], ...VESSELS, ...COMPOSITION,
+  ['pulse', 'Pulse (blood pressure monitor)', 'bpm', 0], ['heart_rate', 'Heart rate (scale)', 'bpm', 0], ...ROOM, ...VESSELS, ...COMPOSITION,
   ['angina', 'Angina', 'score', 1], ['ketones', 'Ketones', 'mmol/L', 1],
   ...TAPE,
   ...HRV.map(([key, label, unit, decimals]): Value => [key, `${label} (HRV test)`, unit, decimals]),

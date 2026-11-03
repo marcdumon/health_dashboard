@@ -57,6 +57,13 @@ class FitbitSettings:
 
 
 @dataclass(frozen=True)
+class HomeAssistantSettings:
+    """The Home Assistant settings: its address; '' when not set."""
+
+    url: str = ''
+
+
+@dataclass(frozen=True)
 class PersonSettings:
     """The user's own values, from the [person] part of person.toml: the birth date (YYYY-MM-DD, or a TOML date), the sex
     ('male' or 'female'), the HR from which a second adds to the net energy expenditure, the personal correction factor of
@@ -80,6 +87,7 @@ class Config:
     polar: PolarSettings = PolarSettings()
     sleep: SleepSettings = SleepSettings()
     fitbit: FitbitSettings = FitbitSettings()
+    home_assistant: HomeAssistantSettings = HomeAssistantSettings()
     person: PersonSettings = PersonSettings()
 
     @property
@@ -102,5 +110,6 @@ def config() -> Config:
         polar=PolarSettings(**raw.get('polar', {})),
         sleep=SleepSettings(**raw.get('sleep', {})),
         fitbit=FitbitSettings(**raw.get('fitbit', {})),
+        home_assistant=HomeAssistantSettings(**raw.get('home_assistant', {})),
         person=PersonSettings(**(tomllib.loads(PERSON_FILE.read_text()).get('person', {}) if PERSON_FILE.is_file() else {})),
     )

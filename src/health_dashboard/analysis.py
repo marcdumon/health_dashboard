@@ -18,6 +18,7 @@ from health_dashboard import (
     polar_hrv,
     polar_load,
     polar_store,
+    room,
     sleep,
     store,
     supplements,
@@ -28,7 +29,7 @@ from health_dashboard import (
 # the user's own scores: never a wrong measurement, so never an outlier; nor is an amount of a supplement taken or a food value
 DAILY = ('angina', 'ketones')
 # values calculated from others (means, trends, loads): never a wrong measurement either
-DERIVED = (*trends.KEYS, *polar_load.KEYS, *(key for key, _ in polar_hrv.MEAN_KEYS.values()), 'h10:ln_rmssd_cv7')
+DERIVED = (*trends.KEYS, *polar_load.KEYS, *room.KEYS, *(key for key, _ in polar_hrv.MEAN_KEYS.values()), 'h10:ln_rmssd_cv7')
 DAYS_PER_MONTH = 30.4375
 # a robust z of 3.5 against the median and the median absolute deviation of the days around (Iglewicz and Hoaglin)
 OUTLIER_Z = 3.5

@@ -85,6 +85,7 @@ export type HealthView = {
   ketones: KetoneReading[]; ketostix: KetostixLevel[]; latest: HealthLatest; withings: WithingsStatus; polar: PolarStatus
   sleep: SleepStatus
   fitbit: FitbitStatus
+  room: RoomStatus
   // the food of the day and of the day before: both are noted in the morning
   food: FoodDay | null
   // the tape measurements of the day by site, and the last day with any before it
@@ -97,6 +98,18 @@ export type HealthDayRow = {
   ketone_readings: number
   systolic: number | null; diastolic: number | null; pulse: number | null; readings: number
 } & { [value: string]: string | number | null | undefined }
+
+// the room temperature from Home Assistant, in the database after Download room temperature: the mean at the blood pressure
+// readings of the day
+export type RoomStatus = {
+  configured: boolean; message: string; sensor: { entity: string; name: string } | null; downloaded_at: string | null
+  day: { celsius: number; readings: number } | null
+}
+export type RoomSensor = { entity: string; name: string; celsius: number | null }
+export const downloadRoomTemperature = (day: string) => call<HealthView>(`/api/health/room/download?day=${day}`, {})
+export const getRoomSensors = () => call<{ sensors: RoomSensor[] }>('/api/health/room/sensors')
+export const setRoomSensor = (day: string, entity: string, name: string) =>
+  send<HealthView>('/api/health/room/sensor', 'PUT', { day, entity, name })
 
 export const getHealth = (day?: string) => call<HealthView>(`/api/health${day ? `?day=${day}` : ''}`)
 // one weigh-in (its groups of one minute) or one blood pressure reading; day is set for a removed one

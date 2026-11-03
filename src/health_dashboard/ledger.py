@@ -53,6 +53,7 @@ CREATE INDEX IF NOT EXISTS withings_values_by_type ON withings_values (type, pos
 CREATE INDEX IF NOT EXISTS withings_values_by_time ON withings_values (measured_at);
 CREATE TABLE IF NOT EXISTS withings_hidden (grpid INTEGER PRIMARY KEY, hidden_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS health_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS room_temperature (at TEXT PRIMARY KEY, celsius REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS polar_sessions (
     id INTEGER PRIMARY KEY, source TEXT NOT NULL, serial TEXT NOT NULL, path TEXT NOT NULL, start_at TEXT NOT NULL,
     end_at TEXT NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL, seconds INTEGER NOT NULL, mean_hr REAL, max_hr REAL,

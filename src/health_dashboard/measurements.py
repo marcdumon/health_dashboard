@@ -4,7 +4,7 @@ values, also after later fetches, and can put it back. Nothing is deleted at Wit
 
 from datetime import date, datetime, timedelta
 
-from health_dashboard import ledger, store, withings
+from health_dashboard import ledger, room, store, withings
 
 
 def _merge(rows: list) -> list[dict]:
@@ -32,11 +32,17 @@ def _rows(where: str, params: tuple) -> list:
 
 
 def day(chosen: date) -> list[dict]:
-    """The measurements of a day (from the start of the day to the start of the next), without the removed ones."""
+    """The measurements of a day (from the start of the day to the start of the next), without the removed ones; a blood
+    pressure reading with the room temperature at that time, when there is one."""
     start = f'T{store.DAY_START_HOUR:02d}:00'
     after = chosen + timedelta(days=1)
-    return _merge(_rows(f'measured_at >= ? AND measured_at < ? AND {withings.NOT_HIDDEN}',
-                        (f'{chosen.isoformat()}{start}', f'{after.isoformat()}{start}')))
+    found = _merge(_rows(f'measured_at >= ? AND measured_at < ? AND {withings.NOT_HIDDEN}',
+                         (f'{chosen.isoformat()}{start}', f'{after.isoformat()}{start}')))
+    temperatures = room.at_readings(chosen.isoformat(), chosen.isoformat())
+    for item in found:
+        if item['kind'] == 'pressure' and item['measured_at'] in temperatures:
+            item['values'][room.KEY] = temperatures[item['measured_at']]
+    return found
 
 
 def removed() -> list[dict]:
