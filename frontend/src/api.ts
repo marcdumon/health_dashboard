@@ -99,8 +99,8 @@ export type HealthDayRow = {
   systolic: number | null; diastolic: number | null; pulse: number | null; readings: number
 } & { [value: string]: string | number | null | undefined }
 
-// the room temperature from Home Assistant, in the database after Download room temperature: the mean at the blood pressure
-// readings of the day
+// the temperature at each blood pressure reading from Home Assistant, in the database after Download room temperature: the
+// mean at the readings of the day
 export type RoomStatus = {
   configured: boolean; message: string; sensor: { entity: string; name: string } | null; downloaded_at: string | null
   day: { celsius: number; readings: number } | null

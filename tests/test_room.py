@@ -1,5 +1,5 @@
-"""The room temperature: the buttons of the card keep the sensor and the steps in the database, against a stand-in Home
-Assistant; a blood pressure reading gets the temperature of its time, and nothing else asks Home Assistant."""
+"""The room temperature: the buttons of the card keep the sensor and the temperature at each blood pressure reading in the
+database, against a stand-in Home Assistant; nothing else asks Home Assistant, and nothing else of its history is kept."""
 
 from datetime import date, datetime
 from pathlib import Path
@@ -43,16 +43,16 @@ def states(*found: tuple[str, str]) -> httpx.Response:
     return httpx.Response(200, json=[[{'state': value, 'last_changed': f'{at}+00:00'} for value, at in found]])
 
 
-def stored() -> dict[str, float]:
-    """The steps in the database."""
+def stored() -> dict[str, float | None]:
+    """The temperatures in the database, by the time of the reading."""
     with ledger.connect() as db:
-        return {row[0]: row[1] for row in db.execute('SELECT at, celsius FROM room_temperature')}
+        return {row[0]: row[1] for row in db.execute('SELECT measured_at, celsius FROM reading_temperature')}
 
 
-def keep_steps(*steps: tuple[str, float]) -> None:
-    """Steps in the database."""
+def keep_temperatures(*found: tuple[str, float | None]) -> None:
+    """Temperatures in the database."""
     with ledger.connect(write=True) as db:
-        db.executemany('INSERT INTO room_temperature (at, celsius) VALUES (?, ?)', steps)
+        db.executemany('INSERT INTO reading_temperature (measured_at, celsius) VALUES (?, ?)', found)
 
 
 def reading(grpid: int, at: str, systolic: float = 120, hidden: bool = False) -> None:
@@ -65,33 +65,51 @@ def reading(grpid: int, at: str, systolic: float = 120, hidden: bool = False) ->
 
 
 @respx.mock
-def test_a_download_keeps_the_mean_of_every_step_in_local_time(sensor: None) -> None:
+def test_a_download_keeps_only_the_temperature_at_each_reading_in_local_time(sensor: None) -> None:
+    reading(1, '2026-11-03T07:02')
+    reading(2, '2026-11-03T07:06')
     route = respx.get(url__startswith=PERIOD).mock(return_value=states(
-        ('20.0', '2026-11-03T06:01:00'), ('21.0', '2026-11-03T06:04:59'), ('18.5', '2026-11-03T06:06:00')))
-    assert room.download(NOW) == 3
-    assert stored()['2026-11-03T07:00'] == 20.5
+        ('20.0', '2026-11-03T06:02:00'), ('21.0', '2026-11-03T06:04:59'), ('18.5', '2026-11-03T06:06:00'),
+        ('30.0', '2026-11-03T06:08:00')))
+    assert room.download(NOW) == 2
+    assert stored() == {'2026-11-03T07:02': 20.0, '2026-11-03T07:06': 18.5}
     request = route.calls[0].request
     assert request.headers['authorization'] == 'Bearer test-token' and request.url.params['filter_entity_id'] == ENTITY
+    assert '2026-11-03T07:02:00' in str(request.url.path)
     assert room.card('2026-11-03')['downloaded_at'] == '2026-11-03T07:12+01:00'
 
 
 @respx.mock
-def test_a_value_holds_until_the_next_state_and_a_sensor_that_is_off_holds_none(sensor: None) -> None:
+def test_a_value_holds_until_the_next_state_and_a_sensor_that_is_off_or_not_there_has_none(sensor: None) -> None:
+    reading(1, '2026-11-03T03:00')
+    reading(2, '2026-11-03T05:30')
+    reading(3, '2026-11-03T05:50')
+    reading(4, '2026-11-03T06:40')
     respx.get(url__startswith=PERIOD).mock(return_value=states(
-        ('20.0', '2026-11-03T04:00:00'), ('unavailable', '2026-11-03T04:12:00'), ('22.0', '2026-11-03T04:26:00')))
-    room.download(datetime(2026, 11, 3, 5, 36, tzinfo=TZ))
-    assert stored() == {'2026-11-03T05:00': 20.0, '2026-11-03T05:05': 20.0, '2026-11-03T05:10': 20.0, '2026-11-03T05:25': 22.0,
-                        '2026-11-03T05:30': 22.0, '2026-11-03T05:35': 22.0}
+        ('20.0', '2026-11-03T04:00:00'), ('unavailable', '2026-11-03T04:40:00'), ('22.0', '2026-11-03T05:20:00')))
+    assert room.download(NOW) == 2
+    assert stored() == {'2026-11-03T03:00': None, '2026-11-03T05:30': 20.0, '2026-11-03T05:50': None, '2026-11-03T06:40': 22.0}
 
 
 @respx.mock
-def test_the_next_download_starts_at_the_newest_step_and_computes_it_again(sensor: None) -> None:
-    keep_steps(('2026-11-03T07:00', 19.0), ('2026-11-03T07:05', 25.0))
-    route = respx.get(url__startswith=PERIOD).mock(return_value=states(
-        ('20.0', '2026-11-03T06:05:00'), ('22.0', '2026-11-03T06:10:00')))
-    room.download(NOW)
-    assert '2026-11-03T07:05:00' in str(route.calls[0].request.url.path)
-    assert stored() == {'2026-11-03T07:00': 19.0, '2026-11-03T07:05': 20.0, '2026-11-03T07:10': 21.0}
+def test_each_reading_is_asked_once_and_without_a_new_one_home_assistant_is_not_asked(sensor: None) -> None:
+    reading(1, '2026-11-03T05:30')
+    route = respx.get(url__startswith=PERIOD).mock(return_value=states(('unavailable', '2026-11-03T04:00:00')))
+    assert room.download(NOW) == 0
+    assert room.download(NOW) == 0 and route.call_count == 1
+    reading(2, '2026-11-03T06:30')
+    route.mock(return_value=states(('19.0', '2026-11-03T05:30:00')))
+    assert room.download(NOW) == 1 and route.call_count == 2
+    assert '2026-11-03T06:30:00' in str(route.calls[1].request.url.path)
+    assert stored() == {'2026-11-03T05:30': None, '2026-11-03T06:30': 19.0}
+
+
+@respx.mock
+def test_a_reading_older_than_home_assistant_keeps_is_not_asked(sensor: None) -> None:
+    reading(1, '2024-11-03T07:00')
+    route = respx.get(url__startswith=PERIOD)
+    assert room.download(NOW) == 0
+    assert not route.called and stored() == {}
 
 
 def test_without_the_settings_the_card_says_what_to_set_and_a_download_refuses() -> None:
@@ -115,6 +133,7 @@ def test_without_a_sensor_a_download_asks_to_choose_one(home_assistant: None) ->
     (httpx.Response(401), 'refused the token'), (httpx.Response(500), 'error 500'), (httpx.Response(200, json=[]), 'no history of'),
     (httpx.ConnectError('down'), 'does not answer')])
 def test_a_failure_says_what_to_do_and_keeps_nothing(sensor: None, reply: object, said: str) -> None:
+    reading(1, '2026-11-03T07:00')
     respx.get(url__startswith=PERIOD).mock(side_effect=[reply])
     with pytest.raises(room.RoomError, match=said):
         room.download(NOW)
@@ -134,29 +153,29 @@ def test_the_list_has_only_the_temperature_sensors_by_name(home_assistant: None)
 
 
 @respx.mock
-def test_another_sensor_counts_from_the_next_download_and_the_stored_temperatures_stay(sensor: None) -> None:
-    keep_steps(('2026-11-03T07:00', 19.0), ('2026-11-03T07:05', 25.0))
+def test_another_sensor_counts_for_the_next_readings_and_the_stored_temperatures_stay(sensor: None) -> None:
+    reading(1, '2026-11-03T05:00')
+    keep_temperatures(('2026-11-03T05:00', 19.0))
+    reading(2, '2026-11-03T06:00')
     room.set_sensor('sensor.other', 'Other')
     assert room.card('2026-11-03')['sensor'] == {'entity': 'sensor.other', 'name': 'Other'}
-    route = respx.get(url__startswith=PERIOD).mock(return_value=states(('30.0', '2026-11-03T06:05:00')))
+    route = respx.get(url__startswith=PERIOD).mock(return_value=states(('30.0', '2026-11-03T05:00:00')))
     room.download(NOW)
     assert route.calls[0].request.url.params['filter_entity_id'] == 'sensor.other'
-    assert stored() == {'2026-11-03T07:00': 19.0, '2026-11-03T07:05': 30.0, '2026-11-03T07:10': 30.0}
+    assert stored() == {'2026-11-03T05:00': 19.0, '2026-11-03T06:00': 30.0}
 
 
-def test_a_reading_has_the_last_step_before_it_not_too_old_and_not_a_removed_one() -> None:
-    keep_steps(('2026-11-02T23:55', 15.0), ('2026-11-03T08:00', 18.0), ('2026-11-03T08:05', 19.0))
-    reading(1, '2026-11-03T00:10')
-    reading(2, '2026-11-03T08:07')
-    reading(3, '2026-11-03T08:05')
-    reading(4, '2026-11-03T08:21')
-    reading(5, '2026-11-03T08:01', hidden=True)
-    assert room.at_readings('2026-11-03', '2026-11-03') == {
-        '2026-11-03T00:10': 15.0, '2026-11-03T08:07': 19.0, '2026-11-03T08:05': 19.0}
+def test_only_the_readings_with_a_value_and_not_removed_have_a_temperature() -> None:
+    reading(1, '2026-11-03T08:00')
+    reading(2, '2026-11-03T09:00')
+    reading(3, '2026-11-03T10:00', hidden=True)
+    reading(4, '2026-11-04T08:00')
+    keep_temperatures(('2026-11-03T08:00', 18.0), ('2026-11-03T09:00', None), ('2026-11-03T10:00', 19.0), ('2026-11-04T08:00', 20.0))
+    assert room.at_readings('2026-11-03', '2026-11-03') == {'2026-11-03T08:00': 18.0}
 
 
 def test_a_day_of_the_history_has_the_mean_at_its_readings_and_each_reading_its_own() -> None:
-    keep_steps(('2026-11-03T08:00', 16.0), ('2026-11-03T20:00', 20.0))
+    keep_temperatures(('2026-11-03T08:02', 16.0), ('2026-11-03T20:02', 20.0))
     reading(1, '2026-11-03T08:02', 130)
     reading(2, '2026-11-03T20:02', 120)
     [row] = [r for r in history.days(7, date(2026, 11, 3)) if r['day'] == '2026-11-03']
@@ -171,7 +190,7 @@ def test_a_day_of_the_history_has_the_mean_at_its_readings_and_each_reading_its_
 def test_the_relation_chart_sets_the_blood_pressure_against_the_room_temperature() -> None:
     assert analysis.known('room_temperature')
     for n, (celsius, systolic) in enumerate([(16.0, 134), (18.0, 130), (20.0, 126), (22.0, 122)], 1):
-        keep_steps((f'2026-11-0{n}T08:00', celsius))
+        keep_temperatures((f'2026-11-0{n}T08:02', celsius))
         reading(n, f'2026-11-0{n}T08:02', systolic)
     found = analysis.relation('systolic', 'room_temperature', 7, date(2026, 11, 4))
     assert (found['n'], found['r'], found['slope']) == (4, -1.0, -2.0)

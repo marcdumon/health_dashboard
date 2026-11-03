@@ -1,18 +1,17 @@
-"""The temperature of the room where the blood pressure is measured, from Home Assistant (url in the [home_assistant] part of
+"""The temperature of the room at each blood pressure reading, from Home Assistant (url in the [home_assistant] part of
 health_dashboard.toml, its token HA_TOKEN in .env). The card chooses the sensor from the temperature sensors of Home Assistant;
-the choice is kept in the database, and another sensor counts from the next download on: the stored temperatures stay.
+the choice is kept in the database, and another sensor counts for the readings of the next download: the stored temperatures
+stay.
 
-Download room temperature gets the states of the sensor since the last download and keeps a value for every STEP_MIN minutes in
-the database, in local time as the Withings readings. Everything else reads the database: only these two buttons ask Home
-Assistant.
-
-A blood pressure reading has the temperature of the last step at or before it, at most MAX_AGE_MIN old (a sensor that was off
-gives no value), and a day the mean of its readings."""
+Download room temperature asks Home Assistant once for the time of the readings that were not asked yet, and keeps only the
+temperature at each of them in the database: the last state at or before the reading, which holds until the next state. A
+reading without a value (the sensor was off or not there yet) is kept without one, so it is not asked again. Everything else
+reads the database: only these two buttons ask Home Assistant. A day has the mean of its readings."""
 
 import math
 import os
 from bisect import bisect_right
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from urllib.parse import quote
 
 import httpx
@@ -24,10 +23,8 @@ from health_dashboard.config import APP_DIR, config
 KEY = 'room_temperature'
 # the history keys of the values of a day, with their decimals
 KEYS = {KEY: 1}
-STEP_MIN = 5
-MAX_AGE_MIN = 15
-# the first download asks this far back: Home Assistant gives what it has
-FIRST_DAYS = 365
+# a download asks for the readings of this many days: Home Assistant keeps no more
+REACH_DAYS = 365
 TIME = '%Y-%m-%dT%H:%M'
 TOKEN_KEY = 'HA_TOKEN'
 DOWNLOADED_KEY, SENSOR_KEY, SENSOR_NAME_KEY = 'room_downloaded_at', 'room_sensor', 'room_sensor_name'
@@ -92,44 +89,43 @@ def set_sensor(entity: str, name: str) -> None:
     store.set_setting(SENSOR_NAME_KEY, name)
 
 
-def _steps(states: list[dict], start: datetime, now: datetime) -> dict[str, float]:
-    """The mean temperature of every STEP_MIN minutes from `start` to `now`, by the local start of the step. Home Assistant
-    gives a state only when it changes, so a value holds until the next state, into the steps after it; a state that is not a
-    number (a sensor that is off) holds no value."""
-    width = STEP_MIN * 60
-    changes = [(datetime.fromisoformat(state['last_changed']).timestamp(), _number(state['state'])) for state in states]
-    held, index, found = None, 0, {}
-    for step in range(int(max(start.timestamp(), changes[0][0]) // width * width), int(now.timestamp()) + 1, width):
-        values = [] if held is None else [held]
-        while index < len(changes) and changes[index][0] < step + width:
-            held = changes[index][1]
-            index += 1
-            if held is not None:
-                values.append(held)
-        if values:
-            found[datetime.fromtimestamp(step, start.tzinfo).strftime(TIME)] = round(sum(values) / len(values), 2)
+def _held(states: list[dict], readings: list[str], zone: tzinfo) -> list[tuple[str, float | None]]:
+    """The temperature at each reading (local time): the last state at or before it. None when that state is not a number (a
+    sensor that is off), or there is no state before it."""
+    moments = [datetime.fromisoformat(state['last_changed']).timestamp() for state in states]
+    found = []
+    for at in readings:
+        index = bisect_right(moments, datetime.fromisoformat(at).replace(tzinfo=zone).timestamp()) - 1
+        found.append((at, _number(states[index]['state']) if index >= 0 else None))
     return found
 
 
 def download(now: datetime) -> int:
-    """Get the states of the sensor from the newest step on (it is computed again) into the database; the number of steps
-    kept. RoomError when the settings or the sensor are not there, or Home Assistant gives nothing."""
+    """Get the temperature at the blood pressure readings that were not asked yet into the database, a removed one too (it can
+    be put back); the number of readings with a value. RoomError when the settings or the sensor are not there, or Home
+    Assistant gives nothing; then nothing is kept."""
+    if not _configured():
+        raise RoomError(NOT_SET)
     entity = store.setting(SENSOR_KEY)
     if not entity:
-        raise RoomError(NOT_SET if not _configured() else NO_SENSOR)
+        raise RoomError(NO_SENSOR)
+    since = (now - timedelta(days=REACH_DAYS)).strftime(TIME)
     with ledger.connect() as db:
-        newest = db.execute('SELECT MAX(at) FROM room_temperature').fetchone()[0]
-    start = datetime.fromisoformat(newest).replace(tzinfo=now.tzinfo) if newest else now - timedelta(days=FIRST_DAYS)
-    found = _get(f'/api/history/period/{quote(start.isoformat())}', {
-        'filter_entity_id': entity, 'end_time': now.isoformat(), 'minimal_response': '', 'no_attributes': ''})
-    if not found or not found[0]:
-        raise RoomError(f'Home Assistant has no history of {entity}. Choose another sensor.')
-    steps = _steps(found[0], start, now)
-    with ledger.connect(write=True) as db:
-        db.executemany('INSERT INTO room_temperature (at, celsius) VALUES (?, ?) ON CONFLICT (at) DO UPDATE SET '
-                       'celsius = excluded.celsius', list(steps.items()))
+        readings = [row[0] for row in db.execute(
+            'SELECT DISTINCT measured_at FROM withings_values WHERE type = ? AND position = ? AND measured_at >= ? AND measured_at '
+            'NOT IN (SELECT measured_at FROM reading_temperature) ORDER BY measured_at', (trends.SYSTOLIC, withings.NO_PART, since))]
+    found = []
+    if readings:
+        start = datetime.fromisoformat(readings[0]).replace(tzinfo=now.tzinfo)
+        states = _get(f'/api/history/period/{quote(start.isoformat())}', {
+            'filter_entity_id': entity, 'end_time': now.isoformat(), 'minimal_response': '', 'no_attributes': ''})
+        if not states or not states[0]:
+            raise RoomError(f'Home Assistant has no history of {entity}. Choose another sensor.')
+        found = _held(states[0], readings, now.tzinfo)
+        with ledger.connect(write=True) as db:
+            db.executemany('INSERT INTO reading_temperature (measured_at, celsius) VALUES (?, ?)', found)
     store.set_setting(DOWNLOADED_KEY, now.isoformat(timespec='minutes'))
-    return len(steps)
+    return sum(celsius is not None for _, celsius in found)
 
 
 def at_readings(first: str, last: str) -> dict[str, float]:
@@ -137,18 +133,11 @@ def at_readings(first: str, last: str) -> dict[str, float]:
     the readings the user removed; a reading without a temperature is left out."""
     start = f'{first}T{store.DAY_START_HOUR:02d}:00'
     end = f'{date.fromisoformat(last) + timedelta(days=1)}T{store.DAY_START_HOUR:02d}:00'
-    since = (datetime.fromisoformat(start) - timedelta(minutes=MAX_AGE_MIN)).strftime(TIME)
     with ledger.connect() as db:
-        readings = db.execute('SELECT measured_at FROM withings_values WHERE type = ? AND position = ? AND measured_at >= ? AND '
-                              f'measured_at < ? AND {withings.NOT_HIDDEN}', (trends.SYSTOLIC, withings.NO_PART, start, end)).fetchall()
-        steps = db.execute('SELECT at, celsius FROM room_temperature WHERE at >= ? AND at < ? ORDER BY at', (since, end)).fetchall()
-    times = [step[0] for step in steps]
-    found = {}
-    for (at,) in readings:
-        index = bisect_right(times, at) - 1
-        if index >= 0 and datetime.fromisoformat(at) - datetime.fromisoformat(times[index]) <= timedelta(minutes=MAX_AGE_MIN):
-            found[at] = steps[index][1]
-    return found
+        rows = db.execute('SELECT measured_at, celsius FROM reading_temperature WHERE celsius IS NOT NULL AND measured_at >= ? AND '
+                          'measured_at < ? AND measured_at IN (SELECT measured_at FROM withings_values WHERE type = ? AND '
+                          f'position = ? AND {withings.NOT_HIDDEN})', (start, end, trends.SYSTOLIC, withings.NO_PART)).fetchall()
+    return {row[0]: row[1] for row in rows}
 
 
 def day_values(first: str, last: str) -> dict[str, dict[str, float]]:
