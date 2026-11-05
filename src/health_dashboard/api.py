@@ -630,7 +630,7 @@ def room_sensor(given: RoomSensor) -> dict:
 
 @app.post('/api/health/fitbit/login')
 def fitbit_login(day: str | None = None) -> dict:
-    """Open the Google Health consent page in the local browser and wait for it; the token goes to the secrets of the app folder."""
+    """Open the Google Health consent page in the local browser and wait for it; the token goes to the secrets folder in ~/.config/md_apps/health_dashboard."""
     health_fitbit.login()
     return _health_view(_health_day(day))
 

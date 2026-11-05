@@ -77,7 +77,7 @@ def test_without_the_birth_date_the_sex_or_a_weight_there_is_no_energy_and_the_m
     assert polar_energy.energy([polar_store.session(walk)]) == {walk: None}
     message = polar_energy.missing()
     assert message.startswith('The net energy expenditure needs birth_date, sex, weight_kg and height_cm: set them in the '
-                              '[person] part of person.toml in the app folder')
+                              '[person] part of person.toml in ~/.config/md_apps/health_dashboard')
     assert 'A Withings scale gives the weight and the BMR' in message
     set_person(monkeypatch, birth_date='1960-05-01', sex='male')
     weighed()

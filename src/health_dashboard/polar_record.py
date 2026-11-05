@@ -31,7 +31,7 @@ GONE_TRIES = 3
 # the activity chosen at Start goes to the logger sessions that end after the start; this margin covers the whole seconds
 # of both times and a last HR sample just before the end
 SINCE_MARGIN_S = 5
-NOT_SET = ('Set the logger folder first: open health_dashboard.toml in the app folder, add logger_project = '
+NOT_SET = ('Set the logger folder first: open health_dashboard.toml in ~/.config/md_apps/health_dashboard, add logger_project = '
            "'/folder/of/polar_h10_logger' to the [polar] part, and restart the app.")
 NOT_STARTED = 'Close the phone app that uses the strap, wet the electrodes, then press Start recording again.'
 NOT_RUNNING = 'No recording runs. Press Start recording first.'

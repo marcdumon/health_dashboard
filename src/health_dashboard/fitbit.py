@@ -20,10 +20,10 @@ from zoneinfo import ZoneInfo
 from google_api import auth, health
 
 from health_dashboard import ledger, store
-from health_dashboard.config import APP_DIR, DATA_DIR, config
+from health_dashboard.config import CONFIG_DIR, DATA_DIR, config
 
-TOKEN_FILE = APP_DIR / 'secrets' / 'google_health_token.json'
-CLIENT_FILE = APP_DIR / 'secrets' / 'client_secret.json'
+TOKEN_FILE = CONFIG_DIR / 'secrets' / 'google_health_token.json'
+CLIENT_FILE = CONFIG_DIR / 'secrets' / 'client_secret.json'
 FOLDER = DATA_DIR / 'google_health'
 PHONE = 'MobileTrack'
 # the time of the last download, and the number of requests that failed in it

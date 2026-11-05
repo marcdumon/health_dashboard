@@ -452,7 +452,7 @@ wheels = [
 
 [[package]]
 name = "health-dashboard"
-version = "0.2.6"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

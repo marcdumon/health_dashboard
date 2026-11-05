@@ -24,7 +24,7 @@ Python environment in `~/.local/share/md_apps/health_dashboard/` (or `$HEALTH_DA
 ~/.local/share/md_apps/health_dashboard/env/bin/health-dashboard  # http://127.0.0.1:8766
 ```
 
-The app folder holds the settings: `health_dashboard.toml` and `person.toml` (the first install makes them from the
+`~/.config/md_apps/health_dashboard/` holds the settings: `health_dashboard.toml` and `person.toml` (the first install makes them from the
 examples), `.env` and `secrets/`. `data_dir` in `health_dashboard.toml` sets the data folder: the database, the downloads
 and the logs. Put it where your backups are made; empty, it is `data/` in the app folder.
 

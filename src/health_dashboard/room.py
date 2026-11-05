@@ -19,7 +19,7 @@ import httpx
 from dotenv import dotenv_values
 
 from health_dashboard import ledger, store, trends, withings
-from health_dashboard.config import APP_DIR, config
+from health_dashboard.config import CONFIG_DIR, config
 
 KEY = 'room_temperature'
 # the history keys of the values of a day, with their decimals
@@ -30,7 +30,7 @@ TIME = '%Y-%m-%dT%H:%M'
 TOKEN_KEY = 'HA_TOKEN'
 DOWNLOADED_KEY, SENSOR_KEY, SENSOR_NAME_KEY, ERROR_KEY = 'room_downloaded_at', 'room_sensor', 'room_sensor_name', 'room_error'
 NOT_SET = ('Set url in the [home_assistant] part of health_dashboard.toml, and restart the app. Put a long-lived access token '
-           f'of your Home Assistant profile in the .env file in the app folder, as {TOKEN_KEY}=…')
+           f'of your Home Assistant profile in the .env file in ~/.config/md_apps/health_dashboard, as {TOKEN_KEY}=…')
 NO_SENSOR = 'Choose the temperature sensor of the room first: press Choose sensor.'
 
 
@@ -40,7 +40,7 @@ class RoomError(RuntimeError):
 
 def _token() -> str:
     """The Home Assistant token of .env, read at every call (a new value works at once), else of the environment."""
-    return dotenv_values(APP_DIR / '.env').get(TOKEN_KEY) or os.environ.get(TOKEN_KEY, '')
+    return dotenv_values(CONFIG_DIR / '.env').get(TOKEN_KEY) or os.environ.get(TOKEN_KEY, '')
 
 
 def _configured() -> bool:
@@ -61,7 +61,7 @@ def _get(path: str, params: dict | None = None) -> list:
                         'part of health_dashboard.toml.') from error
     if reply.status_code in (401, 403):
         raise RoomError(f'Home Assistant refused the token. Make a new long-lived access token in your Home Assistant profile, '
-                        f'and put it in the .env file in the app folder, as {TOKEN_KEY}=…')
+                        f'and put it in the .env file in ~/.config/md_apps/health_dashboard, as {TOKEN_KEY}=…')
     if reply.status_code != 200:
         raise RoomError(f'Home Assistant answered with error {reply.status_code}. Press the button again.')
     return reply.json()

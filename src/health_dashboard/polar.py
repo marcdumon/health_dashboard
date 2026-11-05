@@ -46,7 +46,7 @@ PART_ROWS = 100_000
 LAYOUT = {('phone', 'hr'): (None, [1]), ('phone', 'rr'): (None, [1]), ('phone', 'ecg'): (1, [3]), ('phone', 'acc'): (1, [2, 3, 4]),
           ('logger', 'hr'): (None, [1]), ('logger', 'rr'): (None, [2]), ('logger', 'ecg'): (1, [2]),
           ('logger', 'acc'): (1, [2, 3, 4])}
-NOT_SET = ('Set the two Polar folders first: open health_dashboard.toml in the app folder, add a [polar] part with '
+NOT_SET = ('Set the two Polar folders first: open health_dashboard.toml in ~/.config/md_apps/health_dashboard, add a [polar] part with '
            'phone_dir and logger_dir (the two folders), and restart the app.')
 _running = threading.Lock()
 # the progress of an import in files: first the copy from the phone (phase 'copy'), then the reading ('read')

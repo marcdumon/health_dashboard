@@ -1,7 +1,6 @@
 """Settings from `health_dashboard.toml`, the user's own values from `person.toml` (not in git) and secrets from `.env`.
 
-These files are in the app folder: the folder of the Python environment (the repo in development, the install folder of an
-installed app). The database, the downloads and the logs are in the data folder: `data_dir` of `health_dashboard.toml`."""
+These files are in ~/.config/md_apps/health_dashboard in an installed app, and in the repo in development. The database, the downloads and the logs are in the data folder: `data_dir` of `health_dashboard.toml`."""
 
 import sys
 import tomllib
@@ -14,9 +13,11 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 APP_DIR = Path(sys.prefix).parent
-CONFIG_FILE = APP_DIR / 'health_dashboard.toml'
+# an installed app keeps its settings in ~/.config; a development copy (a repo) keeps its own, next to the code
+CONFIG_DIR = APP_DIR if (APP_DIR / 'pyproject.toml').is_file() else Path.home() / '.config' / 'md_apps' / 'health_dashboard'
+CONFIG_FILE = CONFIG_DIR / 'health_dashboard.toml'
 # the user's own values: git ignores this file, person.example.toml shows its part
-PERSON_FILE = APP_DIR / 'person.toml'
+PERSON_FILE = CONFIG_DIR / 'person.toml'
 
 
 def data_dir() -> Path:
@@ -99,9 +100,9 @@ class Config:
 @cache
 def config() -> Config:
     """Load the config file once."""
-    load_dotenv(APP_DIR / '.env')
+    load_dotenv(CONFIG_DIR / '.env')
     if not CONFIG_FILE.is_file():
-        raise SystemExit(f'No {CONFIG_FILE.name} in {APP_DIR}: copy health_dashboard.example.toml to {CONFIG_FILE.name}, '
+        raise SystemExit(f'No {CONFIG_FILE.name} in {CONFIG_DIR}: copy health_dashboard.example.toml to {CONFIG_FILE.name}, '
                          'then set your own folders in it.')
     raw = tomllib.loads(CONFIG_FILE.read_text())
     return Config(

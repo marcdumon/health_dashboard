@@ -1,4 +1,4 @@
-"""The user's own values for the Health page, from the [person] part of person.toml in the app folder (git ignores that
+"""The user's own values for the Health page, from the [person] part of person.toml in ~/.config/md_apps/health_dashboard (git ignores that
 file; person.example.toml shows the part): the birth date, the sex, the HR from which a second adds to the net energy
 expenditure, its correction factor, and the weight and height for when the Withings scale has none. The app reads them at
 its start."""
@@ -9,7 +9,7 @@ from health_dashboard.config import PersonSettings, config
 
 SEXES = ('male', 'female')
 # where a message sends the user to set a value
-SET_IT = ('in the [person] part of person.toml in the app folder (person.example.toml shows how: copy it to person.toml the '
+SET_IT = ('in the [person] part of person.toml in ~/.config/md_apps/health_dashboard (person.example.toml shows how: copy it to person.toml the '
           'first time), then restart the app')
 
 
