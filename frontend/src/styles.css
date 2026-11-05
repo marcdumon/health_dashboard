@@ -782,3 +782,6 @@ dialog.health-analysis::backdrop { background: rgb(0 0 0 / 0.5); }
 .polar-row-actions button + button { margin-left: 6px; }
 /* the copy of the regime to another day, in the head of the popup next to its day */
 .regime-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-right: auto; font-size: 14px; }
+
+.restart-server { margin-left: 12px; font-size: 0.8rem; opacity: 0.75; }
+.restart-server:hover { opacity: 1; }

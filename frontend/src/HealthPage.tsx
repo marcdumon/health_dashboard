@@ -24,6 +24,7 @@ import {
   COMPOSITION, FITBIT, FITBIT_GROUPS, FOOD, H10, HRV, HRV_BETTER, inText, RECOVERY, ROOM, SLEEP, STAIRS, TAPE, TAPE_PAIRS, VESSELS,
   type Value,
 } from './healthValues'
+import RestartButton from './RestartButton'
 
 // the user's health: each day the supplements taken (each amount at its clock time), one angina score 0 to 5 with a
 // note, and the Withings blood pressure and scale measurements, fetched by the app; a history puts them on one date axis.
@@ -64,7 +65,7 @@ export default function HealthPage() {
   const data = view.data
   return (
     <section className="page accent-health health-page">
-      <header className="page-head"><h1>Health dashboard</h1></header>
+      <header className="page-head"><h1>Health dashboard</h1><RestartButton className="restart-server" /></header>
       <HealthOverview day={data.day} />
       <div className="health-top">
         {/* the Polar and Sleep cards under the Today card: the parts of the day fold, so the left column has room, and the

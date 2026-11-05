@@ -3,6 +3,7 @@ import { useRef } from 'react'
 
 import { getVersion } from './api'
 import HealthPage from './HealthPage'
+import RestartButton from './RestartButton'
 
 // the dashboard is one page; a banner says when the server runs old code or this page is older than the server's build
 export default function App() {
@@ -14,8 +15,8 @@ export default function App() {
     <main className="main solo">
       {version.data?.restart_needed && (
         <div className="message outdated" role="alert">
-          <p>The app was updated while it was running, and the running app still has the old code. Restart it: press Ctrl+C in
-            the terminal where it runs, then type <code>md_run_health_dashboard</code>.</p>
+          <p>The app was updated while it was running, and the running app still has the old code. Restart it.</p>
+          <RestartButton className="primary" />
         </div>
       )}
       {outdated && (

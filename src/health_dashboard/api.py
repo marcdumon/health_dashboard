@@ -2,10 +2,13 @@
 button press does (Fetch now, Import, Download Fitbit, ...)."""
 
 import logging
+import os
+import sys
 import threading
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import time
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -60,6 +63,19 @@ def code_stamp() -> float:
 
 # the running server's own code; newer code on disk only takes effect after a restart
 STARTED_STAMP = code_stamp()
+
+
+def _restart_soon() -> None:
+    """Replace this process by a fresh start of the same command, half a second after the answer went out."""
+    time.sleep(0.5)
+    os.execv(sys.executable, sys.orig_argv)
+
+
+@app.post('/api/restart')
+def restart() -> dict:
+    """Start the server again with the same command: this process is replaced once the answer has gone out."""
+    threading.Thread(target=_restart_soon, daemon=True).start()
+    return {'restarting': True}
 
 
 @app.get('/api/version')
