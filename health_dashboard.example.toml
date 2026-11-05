@@ -39,7 +39,7 @@ backup_file = ''
 first_day = ''
 
 [home_assistant]
-# Home Assistant, for the temperature of the room where you measure your blood pressure: asked only by the buttons of the Room
-# temperature card, which also chooses the sensor; the token is HA_TOKEN in .env
+# Home Assistant, for the temperature of the room where you measure your blood pressure: asked only by Fetch now and the buttons
+# of the Room temperature card, which also chooses the sensor; the token is HA_TOKEN in .env
 # for example url = 'http://192.168.1.20'
 url = ''

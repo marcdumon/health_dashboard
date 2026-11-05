@@ -9,7 +9,7 @@ A personal health dashboard that runs on your own PC, in the browser. All data s
 | Polar H10 | sessions, HR zones, HRV test, HR recovery test, stairs test, training load, net energy expenditure | the Polar H10 logger on the PC and the Polar Sensor Logger app on the phone, on Import |
 | Sleep | sleep times, stages and cycles | the Sleep as Android backup in Dropbox, on Import sleep |
 | Fitbit | HR, HRV, SpO2, breathing rate, skin temperature, sleep, activity and exercises | the Google Health API, on Download Fitbit |
-| Room temperature | the temperature of the room at each blood pressure reading | Home Assistant, on Download room temperature |
+| Room temperature | the temperature of the room at each blood pressure reading | Home Assistant, on Fetch now or Download room temperature |
 | History | a chart of every value by day, the large view of each chart and the relation of two values | all of the above |
 
 A page read never downloads or changes anything: only a button does.

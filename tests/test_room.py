@@ -10,7 +10,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from health_dashboard import analysis, api, history, ledger, measurements, room, store
+from health_dashboard import analysis, api, history, ledger, measurements, room, store, withings
 from health_dashboard import config as config_module
 
 TZ = ZoneInfo('Europe/Brussels')
@@ -222,3 +222,46 @@ def test_the_routes_choose_a_sensor_and_say_what_to_do(monkeypatch: pytest.Monke
     view = client.put('/api/health/room/sensor', json={'entity': ENTITY, 'name': 'Test room'}).json()
     assert view['room']['sensor'] == {'entity': ENTITY, 'name': 'Test room'}
     assert client.put('/api/health/room/sensor', json={'entity': ''}).status_code == 422
+
+
+@pytest.fixture
+def fetch_now(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """A client with Withings connected, whose fetch brings one new blood pressure reading each time until they run out."""
+    new = [(1, '2026-11-03T07:02')]
+    status = withings.status
+
+    def sync(asked: bool = False) -> bool:
+        while new:
+            reading(*new.pop())
+        return True
+
+    monkeypatch.setattr(api, '_health_now', lambda: NOW)
+    monkeypatch.setattr(withings, 'status', lambda: status() | {'connected': True})
+    monkeypatch.setattr(withings, 'sync', sync)
+    return TestClient(api.app)
+
+
+@respx.mock
+def test_fetch_now_gets_the_temperature_at_the_new_readings(sensor: None, fetch_now: TestClient) -> None:
+    route = respx.get(url__startswith=PERIOD).mock(return_value=states(('19.0', '2026-11-03T06:01:00')))
+    view = fetch_now.post('/api/health/withings/fetch').json()
+    assert stored() == {'2026-11-03T07:02': 19.0} and view['room']['day'] == {'celsius': 19.0, 'readings': 1}
+    fetch_now.post('/api/health/withings/fetch')
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_a_home_assistant_that_fails_does_not_stop_the_fetch_and_the_card_says_it(sensor: None, fetch_now: TestClient) -> None:
+    route = respx.get(url__startswith=PERIOD).mock(side_effect=httpx.ConnectError('down'))
+    reply = fetch_now.post('/api/health/withings/fetch')
+    assert reply.status_code == 200 and 'does not answer' in reply.json()['room']['message'] and stored() == {}
+    route.mock(side_effect=None, return_value=states(('19.0', '2026-11-03T06:01:00')))
+    view = fetch_now.post('/api/health/room/download').json()
+    assert view['room']['message'] == '' and stored() == {'2026-11-03T07:02': 19.0}
+
+
+@respx.mock
+def test_fetch_now_without_a_sensor_does_not_ask_home_assistant(home_assistant: None, fetch_now: TestClient) -> None:
+    route = respx.get(url__startswith=PERIOD)
+    reply = fetch_now.post('/api/health/withings/fetch')
+    assert reply.status_code == 200 and reply.json()['room']['message'] == '' and not route.called

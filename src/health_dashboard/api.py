@@ -554,13 +554,15 @@ def withings_callback(code: str = '', state: str = '', error: str = '') -> Redir
 
 @app.post('/api/health/withings/fetch')
 def withings_fetch(day: str | None = None) -> dict:
-    """Fetch new Withings measurements now (Withings allows one fetch in 10 minutes)."""
+    """Fetch new Withings measurements now (Withings allows one fetch in 10 minutes), and the room temperature at the new
+    blood pressure readings."""
     if not withings.status()['connected']:
         raise HTTPException(409, 'Withings is not connected. Press Connect Withings first.')
     try:
         withings.sync(asked=True)
     except withings.TooSoon as error:
         raise HTTPException(429, str(error)) from error
+    room.after_fetch(_health_now())
     return _health_view(_health_day(day))
 
 

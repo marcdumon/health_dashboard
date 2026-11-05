@@ -3,10 +3,11 @@ health_dashboard.toml, its token HA_TOKEN in .env). The card chooses the sensor 
 the choice is kept in the database, and another sensor counts for the readings of the next download: the stored temperatures
 stay.
 
-Download room temperature asks Home Assistant once for the time of the readings that were not asked yet, and keeps only the
-temperature at each of them in the database: the last state at or before the reading, which holds until the next state. A
-reading without a value (the sensor was off or not there yet) is kept without one, so it is not asked again. Everything else
-reads the database: only these two buttons ask Home Assistant. A day has the mean of its readings."""
+Fetch now of the Withings card, and Download room temperature, ask Home Assistant once for the time of the readings that were
+not asked yet, and keep only the temperature at each of them in the database: the last state at or before the reading, which
+holds until the next state. A reading without a value (the sensor was off or not there yet) is kept without one, so it is not
+asked again. Everything else reads the database: only these buttons and the choice of the sensor ask Home Assistant. A day has
+the mean of its readings."""
 
 import math
 import os
@@ -27,7 +28,7 @@ KEYS = {KEY: 1}
 REACH_DAYS = 365
 TIME = '%Y-%m-%dT%H:%M'
 TOKEN_KEY = 'HA_TOKEN'
-DOWNLOADED_KEY, SENSOR_KEY, SENSOR_NAME_KEY = 'room_downloaded_at', 'room_sensor', 'room_sensor_name'
+DOWNLOADED_KEY, SENSOR_KEY, SENSOR_NAME_KEY, ERROR_KEY = 'room_downloaded_at', 'room_sensor', 'room_sensor_name', 'room_error'
 NOT_SET = ('Set url in the [home_assistant] part of health_dashboard.toml, and restart the app. Put a long-lived access token '
            f'of your Home Assistant profile in the .env file in the app folder, as {TOKEN_KEY}=…')
 NO_SENSOR = 'Choose the temperature sensor of the room first: press Choose sensor.'
@@ -53,7 +54,7 @@ def _get(path: str, params: dict | None = None) -> list:
         raise RoomError(NOT_SET)
     url = config().home_assistant.url
     try:
-        with httpx.Client(timeout=120.0) as http:
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=5.0)) as http:
             reply = http.get(f'{url.rstrip("/")}{path}', params=params, headers={'Authorization': f'Bearer {_token()}'})
     except httpx.HTTPError as error:
         raise RoomError(f'Home Assistant does not answer at {url}. Check that it runs, and check url in the [home_assistant] '
@@ -87,6 +88,7 @@ def set_sensor(entity: str, name: str) -> None:
     """Choose the sensor of the room. It counts from the next download on: the stored temperatures stay."""
     store.set_setting(SENSOR_KEY, entity)
     store.set_setting(SENSOR_NAME_KEY, name)
+    store.set_setting(ERROR_KEY, None)
 
 
 def _held(states: list[dict], readings: list[str], zone: tzinfo) -> list[tuple[str, float | None]]:
@@ -125,7 +127,19 @@ def download(now: datetime) -> int:
         with ledger.connect(write=True) as db:
             db.executemany('INSERT INTO reading_temperature (measured_at, celsius) VALUES (?, ?)', found)
     store.set_setting(DOWNLOADED_KEY, now.isoformat(timespec='minutes'))
+    store.set_setting(ERROR_KEY, None)
     return sum(celsius is not None for _, celsius in found)
+
+
+def after_fetch(now: datetime) -> None:
+    """After a Withings fetch: get the temperature at the new readings, when the settings and the sensor are there. A failure
+    does not stop the fetch: the card says it, and Download room temperature asks again."""
+    if not (_configured() and store.setting(SENSOR_KEY)):
+        return
+    try:
+        download(now)
+    except RoomError as error:
+        store.set_setting(ERROR_KEY, str(error))
 
 
 def at_readings(first: str, last: str) -> dict[str, float]:
@@ -149,12 +163,12 @@ def day_values(first: str, last: str) -> dict[str, dict[str, float]]:
 
 
 def card(day: str) -> dict:
-    """What the Room temperature card shows: whether the settings are there and what to set when not, the chosen sensor, the
-    time of the last download, and the mean temperature at the blood pressure readings of the day with their number (None
-    without one)."""
+    """What the Room temperature card shows: whether the settings are there, what to set when not or what failed at the last
+    fetch, the chosen sensor, the time of the last download, and the mean temperature at the blood pressure readings of the
+    day with their number (None without one)."""
     found = list(at_readings(day, day).values())
     entity = store.setting(SENSOR_KEY)
-    return {'configured': _configured(), 'message': '' if _configured() else NOT_SET,
+    return {'configured': _configured(), 'message': (store.setting(ERROR_KEY) or '') if _configured() else NOT_SET,
             'sensor': {'entity': entity, 'name': store.setting(SENSOR_NAME_KEY) or entity} if entity else None,
             'downloaded_at': store.setting(DOWNLOADED_KEY),
             'day': {'celsius': round(sum(found) / len(found), KEYS[KEY]), 'readings': len(found)} if found else None}
