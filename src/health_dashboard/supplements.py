@@ -272,6 +272,24 @@ def remove_supplement(supplement_id: int, day: date) -> None:
         db.execute('UPDATE health_supplement_list SET removed = ? WHERE id = ?', (day.isoformat(), supplement_id))
 
 
+def move_supplement(supplement_id: int, day: date, direction: int) -> None:
+    """Move a supplement a place up (-1) or down (1) among those in the list on a day, at once: it passes the next one in the
+    list, not one taken out of it. The order is one for every day; the first stays first and the last stays last."""
+    key = day.isoformat()
+    with connect(write=True) as db:
+        _listed(db, supplement_id, key)
+        ids = [row[0] for row in db.execute('SELECT id FROM health_supplement_list ORDER BY position, id')]
+        listed = [row[0] for row in db.execute(f'SELECT id FROM health_supplement_list WHERE {LISTED} ORDER BY position, id',
+                                               {'day': key})]
+        place = listed.index(supplement_id) + direction
+        if not 0 <= place < len(listed):
+            return
+        ids.remove(supplement_id)
+        other = ids.index(listed[place])
+        ids.insert(other if direction < 0 else other + 1, supplement_id)
+        db.executemany('UPDATE health_supplement_list SET position = ? WHERE id = ?', list(enumerate(ids, 1)))
+
+
 def copy_regime(source: date, target: date) -> int:
     """Give every supplement in the list on `target` the plan it had on `source` (none: nothing at any moment), from
     `target` on; the days before keep their plan. How many amounts changed."""

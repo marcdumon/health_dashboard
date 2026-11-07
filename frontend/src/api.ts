@@ -191,6 +191,9 @@ export const changeSupplement = (id: number, day: string, fields: SupplementChan
   send<{ regime: Regime }>(`/api/health/supplements/${id}`, 'PUT', { day, ...fields })
 export const removeSupplement = (id: number, day: string) =>
   send<{ regime: Regime }>(`/api/health/supplements/${id}?day=${day}`, 'DELETE')
+// a place up (-1) or down (1) among the supplements in the list on the day
+export const moveSupplement = (id: number, day: string, direction: -1 | 1) =>
+  call<{ regime: Regime }>(`/api/health/supplements/${id}/move`, { day, direction })
 export const setAngina = (day: string, score: number | null, note: string, notMeasured = false) =>
   send<HealthView>('/api/health/angina', 'PUT', { day, score, note, not_measured: notMeasured })
 // some fields of the food of a day

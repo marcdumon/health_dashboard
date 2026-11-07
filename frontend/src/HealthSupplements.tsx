@@ -3,8 +3,8 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
-  addIntake, addSupplement, changeSupplement, copyRegime, getRegime, removeIntake, removeSupplement, setIntakeAmount, setIntakeTime,
-  takeMoment, undoMoment,
+  addIntake, addSupplement, changeSupplement, copyRegime, getRegime, moveSupplement, removeIntake, removeSupplement, setIntakeAmount,
+  setIntakeTime, takeMoment, undoMoment,
   type HealthSupplement, type HealthView, type Regime, type RegimeItem, type SupplementChange, type SupplementChangeFields,
 } from './api'
 import { closeOutside } from './dialog'
@@ -181,7 +181,7 @@ const changed = (d: Draft, s: RegimeItem, moments: string[]) => {
 // the regime of a day, the day of the page at first: any day can be chosen, an earlier one to see the plan it had, a
 // later one to plan a change. Per supplement its unit, one dose, comment and the amount at each moment. The fields are drafts until
 // Save, which saves every changed supplement from the chosen day on; Close or another day leaves the drafts unsaved. Remove
-// and Add act at once, from the chosen day on. Copy gives another day the plan of the chosen day, from that day on. Below:
+// and Add act at once, from the chosen day on; ▲ and ▼ move a supplement at once, in the one order of every day. Copy gives another day the plan of the chosen day, from that day on. Below:
 // every change of the plan, each a link to its day
 function RegimeDialog({ day: pageDay, today, onClose }: { day: string; today: string; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -289,36 +289,43 @@ function RegimeEditor({ day, regime, onDay, onUnsaved }: {
   })
   const remove = useMutation({ mutationFn: (id: number) => removeSupplement(id, day),
                                onSuccess: ({ regime: next }) => { show(next); keep(next) }, scope: SCOPE })
+  const move = useMutation({ mutationFn: ({ id, direction }: { id: number; direction: -1 | 1 }) => moveSupplement(id, day, direction),
+                             onSuccess: ({ regime: next }) => show(next), scope: SCOPE })
   const add = useMutation({
     mutationFn: () => addSupplement(day, { name: draft.name, dose_unit: draft.unit, step: draft.unit ? typed(draft.step) ?? null : null,
                                            comment: draft.comment.trim() }),
     onSuccess: ({ regime: next }) => { show(next); keep(next); setDraft(EMPTY) }, scope: SCOPE,
   })
   useEffect(() => onUnsaved(edited.length), [edited.length, onUnsaved])
-  const error = save.error ?? remove.error ?? add.error
+  const error = save.error ?? remove.error ?? move.error ?? add.error
   return (
     <>
       <div className="health-table regime-table">
         <table>
           <thead>
             <tr className="regime-groups">
+              <td />
               <th colSpan={4} scope="colgroup">Supplement</th>
               <th colSpan={moments.length + 1} scope="colgroup" className="regime-plan regime-plan-start">Plan, the amount at
                 each moment</th>
               <td />
             </tr>
             <tr>
+              <th scope="col"><span className="sr-only">Order</span></th>
               <th scope="col">Name</th><th scope="col">Unit</th><th scope="col">One dose</th><th scope="col">Comment</th>
               {moments.map((m, i) => <th key={m} scope="col" className={plan(i)}>{m}</th>)}
               <th scope="col" className="regime-plan">A day</th><th scope="col"><span className="sr-only">Remove</span></th>
             </tr>
           </thead>
-          {items.map(s => (
+          {items.map((s, i) => (
             <RegimeRow key={s.id} item={s} draft={draftFor(s)} moments={moments} edited={edited.includes(s)}
+                       first={i === 0} last={i === items.length - 1} moving={move.isPending}
+                       onMove={direction => move.mutate({ id: s.id, direction })}
                        onDraft={next => edit(s, next)} onRemove={() => remove.mutate(s.id)} />
           ))}
           <tbody>
             <tr className="regime-add">
+              <td />
               <td><input value={draft.name} placeholder="New supplement" aria-label="Name of the new supplement"
                          onChange={e => setDraft({ ...draft, name: e.target.value })} /></td>
               <td><UnitSelect value={draft.unit} label="Unit of the new supplement" onChange={unit => setDraft({ ...draft, unit })} /></td>
@@ -374,9 +381,10 @@ function UnitSelect({ value, label, disabled = false, onChange }: {
   )
 }
 
-// one supplement of the regime: its fields change the draft only; Save sends it
-function RegimeRow({ item: s, draft: d, moments, edited, onDraft, onRemove }: {
-  item: RegimeItem; draft: Draft; moments: string[]; edited: boolean; onDraft: (next: Draft) => void; onRemove: () => void
+// one supplement of the regime: its fields change the draft only; Save sends it. ▲ and ▼ move it at once
+function RegimeRow({ item: s, draft: d, moments, edited, first, last, moving, onMove, onDraft, onRemove }: {
+  item: RegimeItem; draft: Draft; moments: string[]; edited: boolean; first: boolean; last: boolean; moving: boolean
+  onMove: (direction: -1 | 1) => void; onDraft: (next: Draft) => void; onRemove: () => void
 }) {
   const amounts = Object.fromEntries(moments.map(m => [m, typed(d.plan[m]) ?? 0]))
   const total = Object.values(amounts).reduce((sum, v) => sum + v, 0)
@@ -384,6 +392,10 @@ function RegimeRow({ item: s, draft: d, moments, edited, onDraft, onRemove }: {
   return (
     <tbody className={`regime-item${edited ? ' edited' : ''}`}>
       <tr>
+        <td className="regime-order">
+          <button type="button" aria-label={`Move ${s.name} up`} disabled={first || moving} onClick={() => onMove(-1)}>▲</button>
+          <button type="button" aria-label={`Move ${s.name} down`} disabled={last || moving} onClick={() => onMove(1)}>▼</button>
+        </td>
         <td><input value={d.name} aria-label={`Name of ${s.name}`} onChange={e => onDraft({ ...d, name: e.target.value })} /></td>
         <td><UnitSelect value={d.unit} label={`Unit of ${s.name}`} disabled={s.used} onChange={unit => onDraft({ ...d, unit })} /></td>
         <td><input type="number" min={0} step="any" value={d.unit ? d.step : ''} disabled={!d.unit} aria-label={`One dose of ${s.name}`}

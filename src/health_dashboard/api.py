@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 import time
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -185,6 +186,13 @@ class RegimeCopy(BaseModel):
 
     from_day: str
     to_day: str
+
+
+class SupplementMove(BaseModel):
+    """A supplement moved a place up (-1) or down (1) among those in the list on the day of the regime."""
+
+    day: str
+    direction: Literal[-1, 1]
 
 
 class HealthAmount(BaseModel):
@@ -456,6 +464,17 @@ def health_supplement_remove(supplement_id: int, day: str) -> dict:
     except KeyError as error:
         raise HTTPException(404, NO_SUPPLEMENT) from error
     return {'regime': health_supplements.regime(chosen)}
+
+
+@app.post('/api/health/supplements/{supplement_id}/move')
+def health_supplement_move(supplement_id: int, given: SupplementMove) -> dict:
+    """Move a supplement a place up or down in the list, at once; the regime of that day."""
+    day = _regime_day(given.day)
+    try:
+        health_supplements.move_supplement(supplement_id, day, given.direction)
+    except KeyError as error:
+        raise HTTPException(404, NO_SUPPLEMENT) from error
+    return {'regime': health_supplements.regime(day)}
 
 
 @app.put('/api/health/angina')

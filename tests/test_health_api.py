@@ -101,6 +101,16 @@ def test_a_supplement_is_added_changed_and_removed(client) -> None:
     assert client.delete('/api/health/supplements/999', params={'day': '2026-10-08'}).status_code == 404
 
 
+def test_a_supplement_moves_a_place_up_or_down(client) -> None:
+    for name in ('Zinc', 'Iron'):
+        view = client.post('/api/health/supplements', json={'day': '2026-10-08', 'name': name, 'dose_unit': 'mg', 'step': 1}).json()
+    move = {'day': '2026-10-08', 'direction': -1}
+    view = client.post(f'/api/health/supplements/{regime(view, "Iron")["id"]}/move', json=move).json()
+    assert [s['name'] for s in view['regime']['items']] == ['Iron', 'Zinc']
+    assert client.post(f'/api/health/supplements/{regime(view, "Iron")["id"]}/move', json=move | {'direction': 2}).status_code == 422
+    assert client.post('/api/health/supplements/999/move', json=move).status_code == 404
+
+
 def test_the_supplement_values_of_the_history_and_each_against_a_value(client) -> None:
     view = client.post('/api/health/supplements', json={'day': '2026-10-01', 'name': 'Biotin', 'dose_unit': 'mg',
                                                          'step': 750}).json()

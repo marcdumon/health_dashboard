@@ -419,8 +419,13 @@ details.habit-card > summary { cursor: pointer; font-weight: 600; }
 .regime-table input:not([type="checkbox"]), .regime-table select { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid var(--rule);
   border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; }
 .regime-table input[type="number"] { min-width: 5em; text-align: right; font-variant-numeric: tabular-nums; }
-.regime-table td:first-child input, .regime-table td:nth-child(4) input { min-width: 10em; }
-.regime-item tr:first-child td:first-child input { font-weight: 600; }
+.regime-table td:nth-child(2) input, .regime-table td:nth-child(5) input { min-width: 10em; }
+.regime-item tr:first-child td:nth-child(2) input { font-weight: 600; }
+/* ▲ and ▼ of a supplement, side by side before its name */
+.regime-order { white-space: nowrap; }
+.regime-order button { padding: 2px 5px; border: 0; background: none; color: var(--muted); font-size: 11px; line-height: 1; cursor: pointer; }
+.regime-order button:hover:not(:disabled) { color: var(--ink); }
+.regime-order button:disabled { opacity: .3; cursor: default; }
 .regime-table select { min-width: 6.5em; }
 .regime-table input:disabled, .regime-table select:disabled { opacity: .55; }
 .regime-item tr:last-child td { padding-bottom: 10px; border-bottom: 1px solid var(--rule); }

@@ -207,6 +207,28 @@ def test_a_removed_supplement_stays_on_a_day_with_its_entries() -> None:
             change()
 
 
+def test_a_supplement_moves_a_place_up_or_down_among_those_in_the_list_of_a_day() -> None:
+    zinc, gone, iron, _ = [supplements.add_supplement(DAY, name, 'mg', 1) for name in ('Zinc', 'Gone', 'Iron', 'Tea')]
+    later = DAY + timedelta(days=1)
+    supplements.remove_supplement(gone, later)
+
+    def order(day: date) -> list[str]:
+        """The names of the regime of a day, in its order."""
+        return [s['name'] for s in supplements.regime(day)['items']]
+
+    supplements.move_supplement(iron, later, -1)
+    assert order(later) == ['Iron', 'Zinc', 'Tea'], 'it passes the next one in the list, not one taken out of it'
+    assert order(DAY) == ['Iron', 'Zinc', 'Gone', 'Tea'], 'one order for every day: only the moved one moves'
+    supplements.move_supplement(zinc, later, 1)
+    assert order(later) == ['Iron', 'Tea', 'Zinc']
+    assert [s['name'] for s in supplements.day_view(later)['items']] == ['Iron', 'Tea', 'Zinc'], 'the card follows'
+    supplements.move_supplement(iron, later, -1)
+    supplements.move_supplement(zinc, later, 1)
+    assert order(later) == ['Iron', 'Tea', 'Zinc'], 'the first stays first and the last stays last'
+    with pytest.raises(KeyError):
+        supplements.move_supplement(gone, later, 1)
+
+
 # the old list (name, unit text, units a day, added) and the old regime (moment, when, name, dose, why, effects) of the user
 OLD_LIST = [('Selenium', 'pill 3 mg', 4, None), ('Vitamin E', 'pill 200 µg', 4, None),
             ('Vitamin B12', 'pill 100 µg (4000 units)', 1, None), ('Lutein', 'capsule 504 mg lutein + 378 mg zeaxanthin', 4, None),
